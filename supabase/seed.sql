@@ -118,5 +118,61 @@ begin
     (v_sivas, 'A Blok iskele kontrolü', null, v_sef, private.today() + 5, 'devam', 'normal'),
     (v_sivas, 'Yapı denetim tutanağı', 'Temel aşaması tutanağı imzalandı', null, private.today() - 3, 'tamamlandi', 'normal'),
     (null,    'Ofis sigorta yenilemesi', 'Genel iş, projeye bağlı değil', v_admin, private.today() + 14, 'acik', 'dusuk');
+
+  -- Taşeron, personel, ekip ve görevlendirmeler (Aşama 2). Kişi adları hayalidir.
+  insert into public.subcontractors (name, trade, cari_account_id, contact_name, phone, notes, is_demo) values
+    ('Örnek Kaba İnşaat Taşeronu', 'kalip', v_taseron, 'Deneme Ekip Başı', '0000 000 00 11',
+     'Cari kartı DEMO-C01 ile bağlı (demo)', true),
+    ('Örnek Elektrik Taşeronu', 'elektrik', null, null, '0000 000 00 12', null, true);
+
+  insert into public.subcontractor_documents (subcontractor_id, title, document_no, valid_until)
+  select s.id, 'Vergi levhası (demo)', 'VL-0001', '2026-12-31'
+    from public.subcontractors s where s.name = 'Örnek Kaba İnşaat Taşeronu';
+
+  insert into public.personnel (full_name, job_title, trade, employment_type, subcontractor_id, is_demo)
+  select x.full_name, x.job_title, x.trade::public.work_trade, x.employment::public.employment_type, s.id, true
+    from (values ('Deneme Şantiye Teknikeri', 'Tekniker',     'genel',    'sirket',  null),
+                 ('Deneme Kalıp Ustası',      'Kalıp ustası', 'kalip',    'taseron', 'Örnek Kaba İnşaat Taşeronu'),
+                 ('Deneme Kalıp Kalfası',     'Kalfa',        'kalip',    'taseron', 'Örnek Kaba İnşaat Taşeronu'),
+                 ('Deneme Demir Ustası',      'Demir ustası', 'demir',    'taseron', 'Örnek Kaba İnşaat Taşeronu'),
+                 ('Deneme Elektrikçi',        'Elektrikçi',   'elektrik', 'taseron', 'Örnek Elektrik Taşeronu'))
+         as x (full_name, job_title, trade, employment, sub_name)
+    left join public.subcontractors s on s.name = x.sub_name;
+
+  insert into public.personnel_contacts (personnel_id, phone)
+  select p.id, '0000 000 00 2' || row_number() over (order by p.full_name)
+    from public.personnel p where p.is_demo;
+
+  insert into public.crews (name, subcontractor_id, trade, leader_id, is_demo)
+  select x.name, s.id, x.trade::public.work_trade, p.id, true
+    from (values ('Kalıp Ekibi',    'Örnek Kaba İnşaat Taşeronu', 'kalip',    'Deneme Kalıp Ustası'),
+                 ('Demir Ekibi',    'Örnek Kaba İnşaat Taşeronu', 'demir',    'Deneme Demir Ustası'),
+                 ('Elektrik Ekibi', 'Örnek Elektrik Taşeronu',    'elektrik', 'Deneme Elektrikçi'))
+         as x (name, sub_name, trade, leader)
+    join public.subcontractors s on s.name = x.sub_name
+    join public.personnel p on p.full_name = x.leader;
+
+  insert into public.crew_memberships (crew_id, personnel_id, start_date, role_title)
+  select c.id, p.id, '2026-03-01', x.role_title
+    from (values ('Kalıp Ekibi', 'Deneme Kalıp Ustası', 'Usta'),
+                 ('Kalıp Ekibi', 'Deneme Kalıp Kalfası', 'Kalfa'),
+                 ('Demir Ekibi', 'Deneme Demir Ustası', 'Usta'),
+                 ('Elektrik Ekibi', 'Deneme Elektrikçi', 'Usta')) as x (crew, person, role_title)
+    join public.crews c on c.name = x.crew
+    join public.personnel p on p.full_name = x.person;
+
+  insert into public.subcontractor_projects (subcontractor_id, project_id, start_date, scope)
+  select s.id, v_sivas, '2026-03-01', 'Kaba inşaat: kalıp ve demir (demo)'
+    from public.subcontractors s where s.name = 'Örnek Kaba İnşaat Taşeronu';
+
+  insert into public.project_assignments (project_id, crew_id, personnel_id, start_date, description)
+  select x.project, c.id, p.id, x.start_date::date, x.description
+    from (values (v_sivas, 'Kalıp Ekibi', null, '2026-03-01', 'Temel ve bodrum kalıbı'),
+                 (v_sivas, 'Demir Ekibi', null, '2026-04-01', null),
+                 (v_sivas, null, 'Deneme Şantiye Teknikeri', '2026-03-01', 'Saha teknik takibi'),
+                 (v_proj,  'Elektrik Ekibi', null, '2026-09-01', null))
+         as x (project, crew, person, start_date, description)
+    left join public.crews c on c.name = x.crew
+    left join public.personnel p on p.full_name = x.person;
 end;
 $$;

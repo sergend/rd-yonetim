@@ -35,6 +35,7 @@ enum ErrorMapper {
     case "23505": return .conflict(ours ?? "Bu kayıt zaten var (kod veya belge tekrarı).")
     case "23514", "22023", "23502", "22P02": return .validation(ours ?? "Girilen bilgiler kurallara uymuyor.")
     case "23503": return .validation(ours ?? "Bağlı kayıt bulunamadı veya pasif.")
+    case "23P01": return .conflict(ours ?? "Tarihler başka bir kayıtla çakışıyor.")
     case "P0002", "PGRST116": return .notFound
     case "PGRST301", "PGRST302": return .notAuthenticated
     default: return .server(ours ?? "Sunucu hatası. Lütfen tekrar deneyin.")
@@ -43,7 +44,7 @@ enum ErrorMapper {
 
   /// Postgres'in kendi (İngilizce) mesajlarını ayıklar.
   private static func isOwnMessage(_ message: String) -> Bool {
-    let english = ["violates", "permission denied", "duplicate key", "invalid input", "null value", "new row"]
+    let english = ["violates", "permission denied", "duplicate key", "invalid input", "null value", "new row", "conflicting key"]
     return !english.contains { message.lowercased().contains($0) }
   }
 }

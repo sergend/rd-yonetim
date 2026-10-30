@@ -79,6 +79,46 @@ public protocol TaskRepository: Sendable {
   func setStatus(id: UUID, status: TaskStatus) async throws
 }
 
+/// Taşeron, personel, ekip ve proje görevlendirmeleri. Kartlar şirket geneli
+/// kayıtlardır; görevlendirmeler projeye aittir. Üyelik ve görevlendirmeler
+/// silinmez, `end...` çağrılarıyla bitiş tarihi yazılır.
+public protocol WorkforceRepository: Sendable {
+  // Taşeron
+  func subcontractors() async throws -> [Subcontractor]
+  func createSubcontractor(_ draft: SubcontractorDraft) async throws -> Subcontractor
+  func updateSubcontractor(id: UUID, expectedVersion: Int, with draft: SubcontractorDraft) async throws -> Subcontractor
+  func documents(subcontractorId: UUID) async throws -> [SubcontractorDocument]
+  func addDocument(_ document: SubcontractorDocument) async throws -> SubcontractorDocument
+  func subcontractorProjects(subcontractorId: UUID?, projectId: UUID?) async throws -> [SubcontractorProject]
+  func addSubcontractorProject(_ link: SubcontractorProject) async throws -> SubcontractorProject
+  func endSubcontractorProject(id: UUID, on endDate: CalendarDate) async throws
+
+  // Personel
+  func personnel() async throws -> [Personnel]
+  func createPersonnel(_ draft: PersonnelDraft) async throws -> Personnel
+  func updatePersonnel(id: UUID, expectedVersion: Int, with draft: PersonnelDraft) async throws -> Personnel
+  /// Yetki yoksa veya kayıt yoksa nil (iletişim bilgisi ayrı izinlidir).
+  func contact(personnelId: UUID) async throws -> PersonnelContact?
+  func setPhone(_ phone: String?, personnelId: UUID) async throws
+
+  // Ekip
+  func crews() async throws -> [Crew]
+  func createCrew(_ draft: CrewDraft) async throws -> Crew
+  func updateCrew(id: UUID, expectedVersion: Int, with draft: CrewDraft) async throws -> Crew
+  func memberships(crewId: UUID?, personnelId: UUID?) async throws -> [CrewMembership]
+  func addMembership(_ membership: CrewMembership) async throws -> CrewMembership
+  func endMembership(id: UUID, on endDate: CalendarDate) async throws
+
+  // Görevlendirme
+  func assignments(projectId: UUID?, personnelId: UUID?, crewId: UUID?) async throws -> [ProjectAssignment]
+  func assign(_ assignment: ProjectAssignment) async throws -> ProjectAssignment
+  func endAssignment(id: UUID, on endDate: CalendarDate) async throws
+  /// Projeye görevlendirilebilecek etkin personel ve ekipler (yalnızca ad ve görev).
+  func candidates(projectId: UUID) async throws -> [AssignmentCandidate]
+  /// Belirtilen günde projede çalışanlar (doğrudan ya da ekip üzerinden).
+  func workforce(projectId: UUID, on day: CalendarDate) async throws -> [WorkforceEntry]
+}
+
 /// Uygulamanın kullandığı tüm repository'ler (bağımlılık enjeksiyonu için).
 public struct Repositories: Sendable {
   public let auth: AuthRepository
@@ -87,14 +127,17 @@ public struct Repositories: Sendable {
   public let costCenters: CostCenterRepository
   public let cari: CariRepository
   public let tasks: TaskRepository
+  public let workforce: WorkforceRepository
 
   public init(auth: AuthRepository, access: AccessRepository, projects: ProjectRepository,
-              costCenters: CostCenterRepository, cari: CariRepository, tasks: TaskRepository) {
+              costCenters: CostCenterRepository, cari: CariRepository, tasks: TaskRepository,
+              workforce: WorkforceRepository) {
     self.auth = auth
     self.access = access
     self.projects = projects
     self.costCenters = costCenters
     self.cari = cari
     self.tasks = tasks
+    self.workforce = workforce
   }
 }

@@ -13,6 +13,15 @@ public actor InMemoryBackend {
   public var accounts: [CariAccount] = []
   public var entries: [StoredEntry] = []
   public var tasks: [TaskItem] = []
+  // Aşama 2 (bkz. InMemoryWorkforce.swift)
+  public var subcontractorList: [Subcontractor] = []
+  public var subcontractorDocuments: [SubcontractorDocument] = []
+  public var subcontractorProjectLinks: [SubcontractorProject] = []
+  public var personnelList: [Personnel] = []
+  public var contacts: [UUID: String] = [:]
+  public var crewList: [Crew] = []
+  public var membershipList: [CrewMembership] = []
+  public var assignmentList: [ProjectAssignment] = []
   /// Sonraki çağrıda fırlatılacak hata (test için).
   public var nextError: RepositoryError?
   public private(set) var postCallCount = 0
@@ -283,7 +292,8 @@ public actor InMemoryBackend {
   public nonisolated var repositories: Repositories {
     Repositories(auth: InMemoryAuth(backend: self), access: InMemoryAccess(backend: self),
                  projects: InMemoryProjects(backend: self), costCenters: InMemoryCostCenters(backend: self),
-                 cari: InMemoryCari(backend: self), tasks: InMemoryTasks(backend: self))
+                 cari: InMemoryCari(backend: self), tasks: InMemoryTasks(backend: self),
+                 workforce: InMemoryWorkforce(backend: self))
   }
 }
 
