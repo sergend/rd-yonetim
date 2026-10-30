@@ -1,0 +1,17 @@
+# Gizli anahtarlar ve yerel ortam dosyaları asla depoya girmez
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+age-identity*.txt
+
+# Yedek çıktıları depoya girmez
+/backup/
+*.tar.gz.age
+
+# macOS / Xcode (Aşama 1)
+.DS_Store
+xcuserdata/
+DerivedData/
+*.xcuserstate
