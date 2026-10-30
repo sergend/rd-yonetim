@@ -1,5 +1,5 @@
 -- Yedek doğrulaması için güvenlik durumu (sıralı):
---   API rollerinin tablo ve fonksiyon ayrıcalıkları, RLS durumu, trigger'lar.
+--   API rollerinin tablo, sütun ve fonksiyon ayrıcalıkları, RLS durumu, trigger'lar.
 select 'table:' || table_schema || '.' || table_name || ':' || grantee || ':' || privilege_type
   from information_schema.role_table_grants
  where table_schema in ('public', 'audit', 'private')
@@ -11,6 +11,12 @@ select 'function:' || n.nspname || '.' || p.proname || ':' || r.rolname
  cross join (values ('anon'), ('authenticated')) as r (rolname)
  where n.nspname in ('public', 'private', 'audit')
    and has_function_privilege(r.rolname, p.oid, 'execute')
+union all
+select 'column:' || table_schema || '.' || table_name || '.' || column_name || ':' || grantee || ':' || privilege_type
+  from information_schema.column_privileges
+ where table_schema = 'public'
+   and table_name = 'profiles'
+   and grantee in ('anon', 'authenticated')
 union all
 select 'rls:' || n.nspname || '.' || c.relname || ':' || c.relrowsecurity
   from pg_class c

@@ -71,6 +71,12 @@ Başarısız zamanlanmış iş akışları için GitHub e-posta bildirimi gönde
 - [ ] `restore-test-monthly.yml` elle çalıştırıldı ve yeşil.
 - [ ] age gizli anahtarı iki ayrı yerde saklanıyor.
 
+Aşama 6'da (belgeler) ek olarak:
+
+- [ ] `STORAGE_BACKUP_ENABLED` açıldı, gece belge yedeği dış depoda görünüyor.
+- [ ] Belgelerin şifreli kopyadan geri yüklenmesi ayrıca denendi ve dosya
+      sağlama toplamları (`documents.sha256`) karşılaştırıldı.
+
 ## 4. Acil durumda geri yükleme
 
 Önce Supabase'in kendi geri dönüşünü deneyin: Database > Backups > **PITR** ile

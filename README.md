@@ -14,6 +14,24 @@ Mimari: [Teknik Mimari Önerisi](https://claude.ai/artifact/6gdNhhjhSuDdodf55R3d
 | 0 | Veritabanı temeli: kullanıcı/rol/izin, proje, audit log, RLS, testler, yedekleme | Geliştiriliyor |
 | 1 | Xcode projesi, giriş, ana ekran, proje ve cari | Bekliyor |
 
+## Yedekleme durumu (önemli)
+
+**Canlı ortam için otomatik dış yedekleme henüz ETKİN DEĞİL.**
+
+- Pull request'lerdeki yeşil "Yedek al ve boş veritabanına geri yükle" işi,
+  yalnızca deneme verisiyle kurulan geçici bir test veritabanını yedekleyip geri
+  yükler. Betiklerin çalıştığını kanıtlar; canlı verinin yedeklendiğini göstermez.
+- `backup-nightly.yml` (gece yedeği) ve `restore-test-monthly.yml` (aylık geri
+  yükleme testi) şu üçü tamamlanmadan çalışmaz: canlı Supabase projesi ve
+  `production-backup` ortamındaki gizli anahtarlar, Supabase dışındaki S3 uyumlu
+  dış yedek deposu, `BACKUP_ENABLED = true` değişkeni.
+- Belge (Storage) yedeği de kapalıdır. Belgeler Aşama 6'da geldiğinde
+  `STORAGE_BACKUP_ENABLED` açılacak ve belgelerin geri yüklenmesi ayrıca test
+  edilecektir; bugünkü geri yükleme testi yalnızca veritabanını kapsar.
+
+Kurulum ve gerçek veriden önceki zorunlu kontrol listesi:
+[docs/runbook-backup-restore.md](docs/runbook-backup-restore.md).
+
 ## Depo yapısı
 
 ```text

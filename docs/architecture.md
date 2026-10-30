@@ -15,7 +15,7 @@ Bu dosya yalnızca veritabanında şu an uygulanmış olanı özetler.
 
 | Tablo | Amaç |
 | --- | --- |
-| `profiles` | `auth.users` ile 1:1 kullanıcı profili; silinmez, pasifleştirilir |
+| `profiles` | `auth.users` ile 1:1 kullanıcı profili; silinmez, pasifleştirilir. Satırlar: kişi kendini, kullanıcı yöneticisi ve genel rollüler herkesi, proje kullanıcıları yalnızca aynı projedekileri görür. E-posta ve telefon sütunları kapalı; `my_profile()` ve `user_directory()` (yalnızca `kullanici.manage`) ile okunur |
 | `permissions` | İzin kataloğu (`modül.eylem`); yalnızca migration ile değişir |
 | `roles` | Rol şablonları; `scope` = `global` veya `project`; `yonetici` sistem rolü tüm izinlere sahip |
 | `role_permissions` | Rol ile izin bağı |
@@ -30,6 +30,14 @@ Bu dosya yalnızca veritabanında şu an uygulanmış olanı özetler.
 `private.has_permission(izin, proje)` = (genel roller ∪ o projedeki rol ∪ özel
 grant) − özel deny. Yasak her zaman kazanır, pasif kullanıcının izni yoktur.
 Uygulama menüleri `public.my_permissions()` ile gösterir; asıl engel RLS'tir.
+
+## Son yönetici koruması
+
+Etkin yönetici = aktif profil + sistem rolü ataması + `kullanici.manage` üzerinde
+genel yasak yok (ileri tarihli yasak da sayılır). Rol kaldırma, pasifleştirme,
+yasak ekleme veya fiziksel silme son etkin yöneticiyi ortadan kaldıracaksa işlem
+sonunda reddedilir (`keep_last_admin` ertelenmiş kısıt trigger'ı). Aynı işlemde
+yeni yönetici atanıp eskisi kaldırılabilir.
 
 ## Her tabloda ortak kurallar
 

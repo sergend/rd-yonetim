@@ -82,6 +82,122 @@ $$;
 grant execute on function private.is_active_user() to authenticated;
 grant execute on function private.has_permission(text, uuid) to authenticated;
 
+-- Profil satırı görünürlüğü: kişi kendini; kullanıcı yöneticisi herkesi; genel
+-- rolü olan (tüm projelerde çalışan) herkesin adını; proje kullanıcıları ise
+-- yalnızca aynı projede aktif üyesi olduğu kişileri görür. E-posta ve telefon
+-- sütunları ayrıca kapalıdır (bkz. private.harden_api_privileges).
+create or replace function private.can_see_profile(p_user uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with me as (select (select auth.uid()) as uid, private.today() as today)
+  select private.is_active_user() and (
+    p_user = (select uid from me)
+    or private.has_permission('kullanici.manage')
+    or exists (
+      select 1
+        from public.user_roles ur
+        join public.roles r on r.id = ur.role_id and r.deleted_at is null
+        join me on ur.user_id = me.uid
+       where ur.deleted_at is null)
+    or exists (
+      select 1
+        from public.project_members mine
+        join public.project_members theirs on theirs.project_id = mine.project_id
+        join public.projects pr on pr.id = mine.project_id and pr.deleted_at is null
+        join me on mine.user_id = me.uid
+       where theirs.user_id = p_user
+         and mine.deleted_at is null
+         and theirs.deleted_at is null
+         and me.today between mine.valid_from   and coalesce(mine.valid_to,   'infinity'::date)
+         and me.today between theirs.valid_from and coalesce(theirs.valid_to, 'infinity'::date))
+  );
+$$;
+
+grant execute on function private.can_see_profile(uuid) to authenticated;
+
+-- -----------------------------------------------------------------------------
+-- Son etkin sistem yöneticisi korunur. Etkin yönetici: aktif profil +
+-- silinmemiş sistem rolü ataması + kullanici.manage üzerinde genel (projesiz)
+-- yasak yok. Yasağın tarihleri bilerek dikkate alınmaz: ileri tarihli bir yasak
+-- da sayılır, yoksa koruma o tarih geldiğinde sessizce delinirdi.
+-- -----------------------------------------------------------------------------
+create or replace function private.effective_admin_count()
+returns integer
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select count(distinct ur.user_id)::integer
+    from public.user_roles ur
+    join public.roles r on r.id = ur.role_id and r.is_system and r.deleted_at is null
+    join public.profiles p on p.id = ur.user_id and p.is_active
+   where ur.deleted_at is null
+     and not exists (
+       select 1 from public.user_permission_overrides o
+        where o.user_id = ur.user_id
+          and o.permission_key = 'kullanici.manage'
+          and o.effect = 'deny'
+          and o.project_id is null
+          and o.deleted_at is null);
+$$;
+
+-- İşlem sonunda (deferred) çalışır; böylece aynı işlemde yeni yönetici atanıp
+-- eskisi kaldırılabilir. Yalnızca yönetici olmuş bir kullanıcıya dokunan ve
+-- sonunda hiç etkin yönetici bırakmayan değişiklik reddedilir; ilk kurulumda
+-- (henüz yönetici yokken) devreye girmez.
+create or replace function private.tg_keep_last_admin()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row  jsonb;
+  v_user uuid;
+begin
+  if tg_op = 'DELETE' then
+    v_row := to_jsonb(old);
+  else
+    v_row := to_jsonb(new);
+  end if;
+  v_user := coalesce(v_row ->> 'user_id', v_row ->> 'id')::uuid;
+
+  -- İlgili değişiklik: kullanıcının (silinmiş olsa da) bir sistem rolü ataması
+  -- var ya da silinen satırın kendisi sistem rolü ataması.
+  if (exists (select 1
+                from public.user_roles ur
+                join public.roles r on r.id = ur.role_id and r.is_system
+               where ur.user_id = v_user)
+      or exists (select 1 from public.roles r
+                  where r.id = (v_row ->> 'role_id')::uuid and r.is_system))
+     and private.effective_admin_count() = 0 then
+    raise exception 'Son etkin yönetici kaldırılamaz; önce başka bir yönetici atayın'
+      using errcode = 'check_violation';
+  end if;
+  return null;
+end;
+$$;
+
+create constraint trigger keep_last_admin
+  after update or delete on public.user_roles
+  deferrable initially deferred
+  for each row execute function private.tg_keep_last_admin();
+
+create constraint trigger keep_last_admin
+  after update or delete on public.profiles
+  deferrable initially deferred
+  for each row execute function private.tg_keep_last_admin();
+
+create constraint trigger keep_last_admin
+  after insert or update on public.user_permission_overrides
+  deferrable initially deferred
+  for each row execute function private.tg_keep_last_admin();
+
 -- -----------------------------------------------------------------------------
 -- Koruma trigger'ları
 -- -----------------------------------------------------------------------------
@@ -147,8 +263,14 @@ begin
 
   -- İzin kataloğu yalnızca migration ile değişir.
   revoke insert, update on public.permissions from authenticated;
-  -- Profil yalnızca Auth trigger'ı ile oluşur.
-  revoke insert on public.profiles from authenticated;
+  -- Profil yalnızca Auth trigger'ı ile oluşur. E-posta ve telefon doğrudan
+  -- okunamaz: kişi kendi bilgisini my_profile(), kullanıcı yöneticisi herkesinkini
+  -- user_directory() ile görür. Tablo düzeyindeki yetki kaldırılıp yalnızca
+  -- hassas olmayan sütunlar açılır.
+  revoke select, insert, update on public.profiles from authenticated;
+  grant select (id, full_name, is_active, created_at, created_by, updated_at, updated_by, version)
+    on public.profiles to authenticated;
+  grant update (full_name, phone, is_active) on public.profiles to authenticated;
 end;
 $$;
 
@@ -186,7 +308,7 @@ alter table public.cost_centers              enable row level security;
 -- profiles
 create policy profiles_select on public.profiles
   for select to authenticated
-  using (private.is_active_user());
+  using (private.can_see_profile(id));
 create policy profiles_update on public.profiles
   for update to authenticated
   using (id = (select auth.uid()) or private.has_permission('kullanici.manage'))
@@ -339,8 +461,43 @@ begin
 end;
 $$;
 
+-- Oturumdaki kullanıcının kendi profili (e-posta ve telefon dahil).
+create or replace function public.my_profile()
+returns table (id uuid, email text, full_name text, phone text, is_active boolean)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select p.id, p.email, p.full_name, p.phone, p.is_active
+    from public.profiles p
+   where p.id = (select auth.uid());
+$$;
+
+-- Kullanıcı yönetimi ekranı için tüm kullanıcılar ve iletişim bilgileri.
+create or replace function public.user_directory()
+returns table (id uuid, email text, full_name text, phone text, is_active boolean)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not private.has_permission('kullanici.manage') then
+    raise exception 'Kullanıcı listesini görüntüleme yetkiniz yok' using errcode = 'insufficient_privilege';
+  end if;
+
+  return query
+    select p.id, p.email, p.full_name, p.phone, p.is_active
+      from public.profiles p
+     order by p.full_name, p.email;
+end;
+$$;
+
 grant execute on function public.my_permissions() to authenticated;
 grant execute on function public.record_history(text, text) to authenticated;
+grant execute on function public.my_profile() to authenticated;
+grant execute on function public.user_directory() to authenticated;
 
 -- -----------------------------------------------------------------------------
 -- İlk yönetici: kayıt kapalı olduğu için ilk kullanıcı Supabase panelinden
