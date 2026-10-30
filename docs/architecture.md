@@ -1,4 +1,4 @@
-# Mimari özet (Aşama 0)
+# Mimari özet (Aşama 0 ve 1)
 
 Tam doküman: [Teknik Mimari Önerisi](https://claude.ai/artifact/6gdNhhjhSuDdodf55R3dn9).
 Bu dosya yalnızca veritabanında şu an uygulanmış olanı özetler.
@@ -24,6 +24,38 @@ Bu dosya yalnızca veritabanında şu an uygulanmış olanı özetler.
 | `user_permission_overrides` | Kullanıcıya özel `grant` / `deny`, isteğe bağlı proje ve geçerlilik tarihleriyle |
 | `projects` | Projeler |
 | `cost_centers` | Projeye bağlı olmayan şirket genel giderleri için masraf merkezleri |
+| `cari_accounts` | Cari kartlar (taşeron, tedarikçi, müşteri, hizmet sağlayıcı, diğer). Bakiye alanı yoktur |
+| `cari_entries` | Cari defter: yalnızca eklenir, değiştirilemez/silinemez; iptal ters kayıtla. Her hareket ya bir projeye ya bir masraf merkezine bağlı. `(source_type, source_id)` benzersiz: aynı kaynak belge iki kez borç/alacak oluşturamaz |
+| `cari_allocations` | Kısmi ödeme ve avans eşleştirmesi; toplam, hareket tutarını aşamaz |
+| `tasks` | İş takibi; proje boşsa şirket geneli |
+
+`projects`, `cost_centers` ve `cari_accounts` üzerindeki `is_demo` işareti demo
+kayıtları ayırır: demo cari ile gerçek proje (veya tersi) aynı harekette
+kullanılamaz ve işaret sonradan değiştirilemez.
+
+## Cari defter (Aşama 1)
+
+- Yön karşı tarafın hesabı açısındandır: **borç** (ödeme, avans), **alacak**
+  (fatura, hakediş, tahsilat). Bakiye = borç − alacak, her sorguda hesaplanır.
+- İstemci deftere doğrudan yazamaz. `post_cari_entry` (istemcinin ürettiği
+  kimlikle; tekrar gönderim ikinci kayıt açmaz), `reverse_cari_entry` (bir kez,
+  ters kayıt yeniden iptal edilemez), `allocate_cari_entry`,
+  `cancel_cari_allocation` RPC'leri yetkiyi ve kuralları denetler.
+- Okuma: `cari_balances(proje, masraf merkezi, tarih)` ve
+  `cari_statement(cari, proje, başlangıç, bitiş, masraf merkezi)` SECURITY
+  INVOKER'dır, yani yalnızca kullanıcının RLS ile görebildiği hareketleri toplar.
+- İzinler: `cari.read/write` (kartlar), `cari_hareket.read/write/reverse`
+  (hareketler). Varsayılan şablonda yalnızca `muhasebe` (ve `yonetici`) finans
+  görür; şantiye şefi ve görüntüleyici görmez. Proje bazlı finans erişimi
+  kullanıcıya özel proje izniyle verilir; genel gider hareketleri genel izin ister.
+
+## iOS katmanları (Aşama 1)
+
+`RDCore` (bağımlılıksız Swift paketi: modeller, repository arayüzleri,
+`@Observable` ViewModel'ler) → `RDSupabase` (repository'lerin supabase-swift
+uygulaması) → `RDYonetim` (yalnızca SwiftUI görünümleri). Tek dış bağımlılık
+supabase-swift'tir. Ekranlardaki yetki kontrolü `my_permissions()` sonucuna
+göre menüyü sadeleştirir; asıl koruma RLS'tir.
 
 ## Etkin izin
 

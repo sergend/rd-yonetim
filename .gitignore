@@ -15,3 +15,8 @@ age-identity*.txt
 xcuserdata/
 DerivedData/
 *.xcuserstate
+
+# Swift paketi ve iOS gizli ayarları
+.build/
+.swiftpm/
+ios/Config/Secrets.xcconfig

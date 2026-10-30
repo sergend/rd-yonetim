@@ -1,0 +1,78 @@
+name: iOS ve Swift testleri
+
+on:
+  pull_request:
+    paths: ["ios/**", "supabase/**", ".github/workflows/ios.yml"]
+  push:
+    branches: [main]
+    paths: ["ios/**", "supabase/**", ".github/workflows/ios.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SUPABASE_CLI_VERSION: 2.122.0
+  SWIFT_IMAGE: swift:6.1-noble
+  # Swift 6.x Linux'ta Observation kütüphanesi bağlama hatası için geçici çözüm.
+  LINUX_LINK_FLAGS: -Xlinker --allow-shlib-undefined
+
+jobs:
+  rdcore-unit:
+    name: RDCore birim testleri (Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ios/RDCore/.build
+          key: rdcore-linux-${{ hashFiles('ios/RDCore/Package.resolved') }}
+      - name: swift test (model, doğrulama, yetki, ViewModel)
+        run: |
+          docker run --rm -v "$PWD/ios/RDCore:/w" -w /w "$SWIFT_IMAGE" \
+            swift test $LINUX_LINK_FLAGS --filter RDCoreTests
+
+  rdcore-integration:
+    name: Supabase repository entegrasyon testleri (yerel Supabase)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+      - uses: actions/cache@v4
+        with:
+          path: ios/RDCore/.build
+          key: rdcore-linux-${{ hashFiles('ios/RDCore/Package.resolved') }}
+      - name: Yerel Supabase (Auth + REST) başlat, deneme verisini yükle
+        run: supabase start -x studio,imgproxy,inbucket,realtime,storage-api,edge-runtime,logflare,vector,supavisor,postgres-meta
+      - name: Repository'leri gerçek API'ye karşı test et
+        run: |
+          eval "$(supabase status -o env | grep -E '^(API_URL|ANON_KEY)=')"
+          docker run --rm --network host -e RD_SUPABASE_URL="$API_URL" -e RD_SUPABASE_ANON_KEY="$ANON_KEY" \
+            -v "$PWD/ios/RDCore:/w" -w /w "$SWIFT_IMAGE" \
+            swift test $LINUX_LINK_FLAGS --filter RDSupabaseIntegrationTests
+
+  ios-build:
+    name: iOS uygulaması derleme (Xcode, simülatör)
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Xcode sürümü
+        run: xcodebuild -version
+      - name: Uygulamayı simülatör için derle (imzasız)
+        working-directory: ios
+        run: |
+          xcodebuild -project RDYonetim.xcodeproj -scheme RDYonetim \
+            -destination 'generic/platform=iOS Simulator' \
+            -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO build
+      - name: RDCore testleri (macOS)
+        working-directory: ios/RDCore
+        run: swift test --filter RDCoreTests
