@@ -11,8 +11,8 @@ Mimari: [Teknik Mimari Önerisi](https://claude.ai/artifact/6gdNhhjhSuDdodf55R3d
 
 | Aşama | Kapsam | Durum |
 | --- | --- | --- |
-| 0 | Veritabanı temeli: kullanıcı/rol/izin, proje, audit log, RLS, testler, yedekleme | Geliştiriliyor |
-| 1 | Xcode projesi, giriş, ana ekran, proje ve cari | Bekliyor |
+| 0 | Veritabanı temeli: kullanıcı/rol/izin, proje, audit log, RLS, testler, yedekleme | Tamamlandı |
+| 1 | iOS iskeleti, giriş, ana ekran, proje, iş takibi ve cari | İncelemede |
 
 ## Yedekleme durumu (önemli)
 
@@ -40,6 +40,11 @@ supabase/
   migrations/          veritabanı şeması; canlıya yalnızca bunlar uygulanır
   tests/               pgTAP testleri (RLS, yetki, audit, yapısal kurallar)
   seed.sql             YALNIZCA yerel deneme verisi (gerçek veri yok)
+ios/
+  RDCore/              Swift paketi: modeller, repository'ler, ViewModel'ler, testler
+  RDYonetim/           SwiftUI ekranları
+  RDYonetim.xcodeproj  Xcode projesi (iOS 17+, yalnızca iPhone)
+  Config/              xcconfig ve Info.plist; Secrets.xcconfig git'e girmez
 scripts/backup/        yedek alma ve geri yükleyip doğrulama betikleri
 .github/workflows/     testler, gece yedeği, aylık geri yükleme testi
 docs/                  mimari özet, kararlar, kurulum ve geri yükleme talimatları
@@ -54,6 +59,8 @@ npx supabase db start      # migration'lar + deneme verisi
 npx supabase test db       # pgTAP testleri
 npx supabase db reset      # sıfırdan kur
 ```
+
+iOS uygulamasını Mac'te açma ve test etme: [docs/ios-mac-setup.md](docs/ios-mac-setup.md).
 
 ## Güvenlik kuralları
 

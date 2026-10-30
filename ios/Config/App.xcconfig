@@ -1,0 +1,5 @@
+// RD Yönetim uygulama ayarları. Gizli değerler Secrets.xcconfig'tedir
+// (git'e girmez). Dosya yoksa uygulama "Sunucu ayarı eksik" ekranını gösterir.
+SUPABASE_URL =
+SUPABASE_ANON_KEY =
+#include? "Secrets.xcconfig"
