@@ -1,0 +1,74 @@
+name: Veritabanı testleri
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SUPABASE_CLI_VERSION: 2.122.0
+
+jobs:
+  pgtap:
+    name: Migration + pgTAP (RLS, yetki, audit)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - name: Yerel veritabanını başlat (migration'lar + deneme verisi)
+        run: supabase db start
+
+      - name: pgTAP testleri
+        run: supabase test db
+
+  backup-restore:
+    name: Yedek al ve boş veritabanına geri yükle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      SOURCE_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+      TARGET_DB_URL: postgresql://postgres:postgres@127.0.0.1:54422/postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - name: PostgreSQL istemcisi ve pg_prove
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client libtap-parser-sourcehandler-pgtap-perl
+
+      - name: Kaynak veritabanını başlat
+        run: supabase db start
+
+      - name: Boş hedef veritabanını başlat (ayrı port)
+        run: |
+          mkdir -p "$RUNNER_TEMP/restore-target"
+          cd "$RUNNER_TEMP/restore-target"
+          supabase init --force
+          sed -i 's/^project_id = .*/project_id = "restore-target"/; s/^port = 54322/port = 54422/; s/^shadow_port = 54320/shadow_port = 54420/' supabase/config.toml
+          supabase db start
+
+      - name: Yedek al
+        env:
+          SUPABASE_DB_URL: ${{ env.SOURCE_DB_URL }}
+        run: scripts/backup/backup.sh "$RUNNER_TEMP/backup"
+
+      - name: Geri yükle ve doğrula
+        run: scripts/backup/restore-verify.sh "$RUNNER_TEMP/backup" "$TARGET_DB_URL"
+
+      - name: Geri yüklenen veritabanında pgTAP testleri
+        run: PGPASSWORD=postgres pg_prove -h 127.0.0.1 -p 54422 -U postgres -d postgres supabase/tests/*.test.sql

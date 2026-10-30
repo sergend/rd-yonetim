@@ -1,0 +1,70 @@
+name: Aylık geri yükleme testi
+
+# Dış depodaki en son gece yedeğini indirir, çözer, boş bir Supabase
+# veritabanına geri yükler; satır sayılarını ve güvenlik durumunu yedek
+# anıyla karşılaştırır, ardından tüm pgTAP testlerini geri yüklenen
+# veritabanında çalıştırır. Başarısızlıkta GitHub e-posta bildirimi gönderir.
+on:
+  schedule:
+    - cron: "0 3 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SUPABASE_CLI_VERSION: 2.122.0
+
+jobs:
+  restore:
+    name: En son yedeği geri yükle ve doğrula
+    if: vars.BACKUP_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    environment: production-backup
+    env:
+      RCLONE_CONFIG_BACKUP_TYPE: s3
+      RCLONE_CONFIG_BACKUP_PROVIDER: Other
+      RCLONE_CONFIG_BACKUP_ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT }}
+      RCLONE_CONFIG_BACKUP_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY_ID }}
+      RCLONE_CONFIG_BACKUP_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_ACCESS_KEY }}
+      BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+      TARGET_DB_URL: postgresql://postgres:postgres@127.0.0.1:54422/postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - name: Araçlar (psql, age, rclone, pg_prove)
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client age rclone libtap-parser-sourcehandler-pgtap-perl
+
+      - name: En son yedeği indir ve çöz
+        env:
+          AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
+        run: |
+          latest="$(rclone lsf "backup:$BUCKET/db/daily/" --files-only | sort | tail -n 1)"
+          test -n "$latest" || { echo "Dış depoda yedek bulunamadı" >&2; exit 1; }
+          echo "Geri yüklenecek yedek: $latest"
+          rclone copyto "backup:$BUCKET/db/daily/$latest" "$RUNNER_TEMP/$latest"
+          umask 077
+          printf '%s\n' "$AGE_IDENTITY" > "$RUNNER_TEMP/age-identity.txt"
+          mkdir -p "$RUNNER_TEMP/backup"
+          age -d -i "$RUNNER_TEMP/age-identity.txt" "$RUNNER_TEMP/$latest" | tar -C "$RUNNER_TEMP/backup" -xzf -
+          rm -f "$RUNNER_TEMP/age-identity.txt"
+          echo "Yedek tarihi: $(cat "$RUNNER_TEMP/backup/created-at.txt")"
+
+      - name: Boş hedef veritabanını başlat
+        run: |
+          mkdir -p "$RUNNER_TEMP/restore-target"
+          cd "$RUNNER_TEMP/restore-target"
+          supabase init --force
+          sed -i 's/^project_id = .*/project_id = "restore-target"/; s/^port = 54322/port = 54422/; s/^shadow_port = 54320/shadow_port = 54420/' supabase/config.toml
+          supabase db start
+
+      - name: Geri yükle ve doğrula
+        run: scripts/backup/restore-verify.sh "$RUNNER_TEMP/backup" "$TARGET_DB_URL"
+
+      - name: Geri yüklenen veritabanında pgTAP testleri
+        run: PGPASSWORD=postgres pg_prove -h 127.0.0.1 -p 54422 -U postgres -d postgres supabase/tests/*.test.sql
