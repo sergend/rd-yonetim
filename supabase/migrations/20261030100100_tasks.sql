@@ -43,11 +43,14 @@ create trigger task_completed_at before insert or update of status on public.tas
 
 alter table public.tasks enable row level security;
 
--- Kişi kendisine atanan işi her zaman görür.
+-- Atanan kişi işi, iş yetkisi olmasa da görür; ancak yalnızca hesabı aktifken
+-- ve işin kapsamına (proje işi ise o projeye) hâlâ erişimi varken.
 create policy tasks_select on public.tasks
   for select to authenticated
   using (private.has_permission('is.read', project_id)
-         or assignee_id = (select auth.uid()));
+         or (assignee_id = (select auth.uid())
+             and private.is_active_user()
+             and (project_id is null or private.has_permission('proje.read', project_id))));
 create policy tasks_insert on public.tasks
   for insert to authenticated
   with check (private.has_permission('is.write', project_id));

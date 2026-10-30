@@ -185,18 +185,23 @@ create trigger check_allocation before insert or update on public.cari_allocatio
 -- Yetki yardımcıları
 -- -----------------------------------------------------------------------------
 
--- İzin genel olarak ya da en az bir projede var mı (proje dışı listeler için).
-create or replace function private.has_permission_somewhere(p_permission text)
+-- Cari kartı görebilir mi: genel cari.read izni ya da kartın hareketi olan
+-- projelerden birinde proje kapsamlı cari.read izni. Proje kapsamlı kullanıcı
+-- kendi projeleriyle ilgisi olmayan carilerin IBAN/vergi/iletişim bilgisini görmez.
+create or replace function private.can_read_cari_account(p_cari_account_id uuid)
 returns boolean
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select private.has_permission(p_permission, null)
-      or exists (select 1 from public.projects pr
+  select private.has_permission('cari.read', null)
+      or exists (select 1
+                   from public.projects pr
                   where pr.deleted_at is null
-                    and private.has_permission(p_permission, pr.id));
+                    and exists (select 1 from public.cari_entries e
+                                 where e.cari_account_id = p_cari_account_id and e.project_id = pr.id)
+                    and private.has_permission('cari.read', pr.id));
 $$;
 
 -- Proje hareketi o projedeki izne, genel gider (masraf merkezi) hareketi genel izne bakar.
@@ -210,7 +215,7 @@ as $$
   select private.has_permission(p_permission, p_project);
 $$;
 
-grant execute on function private.has_permission_somewhere(text) to authenticated;
+grant execute on function private.can_read_cari_account(uuid) to authenticated;
 grant execute on function private.has_entry_permission(text, uuid) to authenticated;
 
 -- -----------------------------------------------------------------------------
@@ -222,14 +227,15 @@ alter table public.cari_allocations enable row level security;
 
 create policy cari_accounts_select on public.cari_accounts
   for select to authenticated
-  using (private.has_permission_somewhere('cari.read'));
+  using (private.can_read_cari_account(id));
+-- Cari kartlar şirket geneli kayıtlardır: oluşturma ve düzenleme genel izin ister.
 create policy cari_accounts_insert on public.cari_accounts
   for insert to authenticated
-  with check (private.has_permission_somewhere('cari.write'));
+  with check (private.has_permission('cari.write', null));
 create policy cari_accounts_update on public.cari_accounts
   for update to authenticated
-  using (private.has_permission_somewhere('cari.write'))
-  with check (private.has_permission_somewhere('cari.write'));
+  using (private.has_permission('cari.write', null))
+  with check (private.has_permission('cari.write', null));
 
 -- Hareketler ve eşleştirmeler yalnızca okunur; yazma RPC'lerle yapılır.
 create policy cari_entries_select on public.cari_entries
@@ -291,12 +297,16 @@ begin
   -- içerikse mevcut kaydı döner, farklıysa reddedilir.
   select * into v_row from public.cari_entries e where e.id = p_id;
   if found then
+    -- Kayıtta saklanan tüm alanlar, saklandığı biçimde (kırpılmış, büyük harf) karşılaştırılır.
     if v_row.cari_account_id = p_cari_account_id
        and v_row.entry_date = p_entry_date
        and v_row.direction = p_direction
        and v_row.kind = p_kind
        and v_row.amount = p_amount
        and v_row.currency = upper(p_currency)
+       and v_row.exchange_rate = p_exchange_rate
+       and v_row.description = trim(p_description)
+       and v_row.document_no is not distinct from nullif(trim(p_document_no), '')
        and v_row.project_id is not distinct from p_project_id
        and v_row.cost_center_id is not distinct from p_cost_center_id then
       return v_row;

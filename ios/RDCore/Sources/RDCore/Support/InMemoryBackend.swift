@@ -137,7 +137,7 @@ public actor InMemoryBackend {
 
   func createAccount(_ draft: CariAccountDraft) throws -> CariAccount {
     try failIfNeeded()
-    guard access.canAnywhere(.cariWrite) else { throw RepositoryError.forbidden(nil) }
+    guard access.can(.cariWrite) else { throw RepositoryError.forbidden(nil) }
     let code = draft.code ?? String(format: "C-%05d", accounts.count + 1)
     let account = CariAccount(code: code, title: draft.title, type: draft.type, taxNumber: draft.taxNumber,
                               taxOffice: draft.taxOffice, phone: draft.phone, email: draft.email,
@@ -148,7 +148,7 @@ public actor InMemoryBackend {
 
   func updateAccount(id: UUID, expectedVersion: Int, draft: CariAccountDraft) throws -> CariAccount {
     try failIfNeeded()
-    guard let index = accounts.firstIndex(where: { $0.id == id }), access.canAnywhere(.cariWrite),
+    guard let index = accounts.firstIndex(where: { $0.id == id }), access.can(.cariWrite),
           accounts[index].version == expectedVersion else {
       throw RepositoryError.conflict("Cari kart siz düzenlerken değiştirildi ya da düzenleme yetkiniz yok.")
     }

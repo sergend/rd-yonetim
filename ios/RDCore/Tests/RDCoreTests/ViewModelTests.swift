@@ -299,3 +299,15 @@ final class TaskListViewModelTests: XCTestCase {
     XCTAssertFalse(vm.canCreate)
   }
 }
+
+@MainActor
+final class CariPermissionTests: XCTestCase {
+  func testProjectScopedWriterCannotCreateOrEditCards() async {
+    let access = AccessControl(grants: [PermissionGrant(projectId: UUID(), permissionKey: "cari.write")])
+    let list = CariListViewModel(access: access, repository: InMemoryBackend().repositories.cari)
+    let detail = CariDetailViewModel(account: PreviewData.taseron, access: access,
+                                     repository: InMemoryBackend().repositories.cari)
+    XCTAssertFalse(list.canCreate, "cari kart açmak genel izin ister")
+    XCTAssertFalse(detail.canEditAccount)
+  }
+}

@@ -22,7 +22,7 @@ public final class CariListViewModel {
     self.repository = repository
   }
 
-  public var canCreate: Bool { access.canAnywhere(.cariWrite) }
+  public var canCreate: Bool { access.can(.cariWrite) }  // cari kart şirket genelidir
   public var canSeeBalances: Bool { access.canAnywhere(.cariHareketRead) }
 
   public var filtered: [CariAccount] {
@@ -162,7 +162,7 @@ public final class CariDetailViewModel {
     self.repository = repository
   }
 
-  public var canEditAccount: Bool { access.canAnywhere(.cariWrite) }
+  public var canEditAccount: Bool { access.can(.cariWrite) }
   public var canSeeEntries: Bool { access.canAnywhere(.cariHareketRead) }
   public var canPostEntries: Bool { access.canAnywhere(.cariHareketWrite) }
 

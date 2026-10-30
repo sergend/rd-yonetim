@@ -1,7 +1,7 @@
 -- Cari hesaplar ve cari defter: çift borç engeli, değişmezlik, ters kayıt,
 -- kısmi ödeme eşleştirmesi, bakiye hesabı ve finansal verinin RLS ile korunması.
 begin;
-select plan(57);
+select plan(67);
 
 -- ---------------------------------------------------------------- hazırlık
 create temp table ctx (k text primary key, v uuid) on commit drop;
@@ -40,11 +40,13 @@ select (select v from ctx where k = 'projfin'), p, (select v from ctx where k = 
 select tests.authenticate_as((select v from ctx where k = 'muhasebe'));
 insert into public.cari_accounts (code, title, type) values
   ('TEST-C1', 'Test Kaba İnşaat Taşeronu', 'taseron'),
-  ('TEST-C2', 'Test Tedarikçi', 'tedarikci');
+  ('TEST-C2', 'Test Tedarikçi', 'tedarikci'),
+  ('TEST-C3', 'Test Döviz Tedarikçisi', 'tedarikci');
+insert into ctx select 'c3', id from public.cari_accounts where code = 'TEST-C3';
 insert into ctx select 'c1', id from public.cari_accounts where code = 'TEST-C1';
 insert into ctx select 'c2', id from public.cari_accounts where code = 'TEST-C2';
 insert into ctx values ('e_pay', gen_random_uuid()), ('e_gen', gen_random_uuid()),
-                       ('e_b', gen_random_uuid()), ('e_rev', gen_random_uuid());
+                       ('e_b', gen_random_uuid()), ('e_rev', gen_random_uuid()), ('e_usd', gen_random_uuid());
 
 -- Kaynak belgeden gelen hareket (hakediş modülü Aşama 2'de bunu yapacak).
 select tests.clear_authentication();
@@ -84,6 +86,39 @@ select throws_ok(
                                           p_project_id => %L) $$,
          (select v from ctx where k = 'e_pay'), (select v from ctx where k = 'c1'), (select v from ctx where k = 'pA')),
   '23505', null, 'aynı kimlikle farklı içerik reddedilir');
+select throws_ok(
+  format($$ select public.post_cari_entry(%L, %L, '2026-10-05', 'borc', 'odeme', 40000, 'Başka açıklama',
+                                          p_project_id => %L) $$,
+         (select v from ctx where k = 'e_pay'), (select v from ctx where k = 'c1'), (select v from ctx where k = 'pA')),
+  '23505', null, 'aynı kimlikle farklı açıklama reddedilir');
+select throws_ok(
+  format($$ select public.post_cari_entry(%L, %L, '2026-10-05', 'borc', 'odeme', 40000, 'Test kısmi ödeme',
+                                          p_project_id => %L, p_document_no => 'DKN-9') $$,
+         (select v from ctx where k = 'e_pay'), (select v from ctx where k = 'c1'), (select v from ctx where k = 'pA')),
+  '23505', null, 'aynı kimlikle farklı belge no reddedilir');
+select lives_ok(
+  format($$ select public.post_cari_entry(%L, %L, '2026-10-05', 'borc', 'odeme', 40000, '  Test kısmi ödeme  ',
+                                          p_project_id => %L, p_document_no => '  ') $$,
+         (select v from ctx where k = 'e_pay'), (select v from ctx where k = 'c1'), (select v from ctx where k = 'pA')),
+  'boşluk farkı olan aynı istek tekrar sayılır (saklanan biçimle karşılaştırılır)');
+select lives_ok(
+  format($$ select public.post_cari_entry(%L, %L, '2026-10-05', 'borc', 'odeme', 1000, 'Test döviz ödemesi',
+                                          p_project_id => %L, p_currency => 'usd', p_exchange_rate => 41.5) $$,
+         (select v from ctx where k = 'e_usd'), (select v from ctx where k = 'c3'), (select v from ctx where k = 'pB')),
+  'döviz hareketi kurla işlenir');
+select lives_ok(
+  format($$ select public.post_cari_entry(%L, %L, '2026-10-05', 'borc', 'odeme', 1000, 'Test döviz ödemesi',
+                                          p_project_id => %L, p_currency => 'USD', p_exchange_rate => 41.500000) $$,
+         (select v from ctx where k = 'e_usd'), (select v from ctx where k = 'c3'), (select v from ctx where k = 'pB')),
+  'aynı döviz isteğinin tekrarı kabul edilir');
+select throws_ok(
+  format($$ select public.post_cari_entry(%L, %L, '2026-10-05', 'borc', 'odeme', 1000, 'Test döviz ödemesi',
+                                          p_project_id => %L, p_currency => 'USD', p_exchange_rate => 42) $$,
+         (select v from ctx where k = 'e_usd'), (select v from ctx where k = 'c3'), (select v from ctx where k = 'pB')),
+  '23505', null, 'aynı kimlikle farklı kur reddedilir');
+select is((select count(*)::int from public.cari_entries
+            where id in ((select v from ctx where k = 'e_pay'), (select v from ctx where k = 'e_usd'))), 2,
+  'tekrar denemeler ek kayıt açmadı');
 select lives_ok(
   format($$ select public.post_cari_entry(%L, %L, '2026-10-06', 'alacak', 'manuel', 2500, 'Test ofis kırtasiye',
                                           p_cost_center_id => %L) $$,
@@ -279,6 +314,14 @@ select results_eq(
   'proje finans izni yalnızca o projenin hareketlerini gösterir');
 select is((select count(*)::int from public.cari_entries where cost_center_id is not null), 0,
   'proje kapsamlı kullanıcı genel gider hareketlerini görmez');
+select results_eq($$ select code from public.cari_accounts where code like 'TEST-%' order by code $$,
+  $$ values ('TEST-C1') $$,
+  'proje kapsamlı kullanıcı yalnızca projesinde hareketi olan carinin kartını (IBAN, vergi, iletişim) görür');
+select throws_ok($$ insert into public.cari_accounts (title, type) values ('Proje kullanıcısının carisi', 'diger') $$,
+  '42501', null, 'proje kapsamlı kullanıcı şirket geneli cari kart açamaz');
+select results_eq(
+  $$ with u as (update public.cari_accounts set phone = '0' where code = 'TEST-C1' returning 1) select count(*)::int from u $$,
+  $$ values (0) $$, 'proje kapsamlı kullanıcı cari kartı düzenleyemez');
 
 -- ---------------------------------------------------------------- demo ayrımı
 select tests.clear_authentication();
