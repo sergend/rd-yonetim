@@ -10,12 +10,16 @@ struct RDYonetimApp: App {
 
   var body: some Scene {
     WindowGroup {
-      if let app {
-        AppRootView()
-          .environment(app)
-      } else {
-        ConfigMissingView()
+      Group {
+        if let app {
+          AppRootView()
+            .environment(app)
+        } else {
+          ConfigMissingView()
+        }
       }
+      // Etkileşim vurgusu marka kırmızısı (metin tonu); dolgu butonlar RDPrimaryButtonStyle'dır.
+      .tint(RDColor.brandText)
     }
   }
 }
@@ -63,7 +67,12 @@ struct AppRootView: View {
     Group {
       switch app.session.state {
       case .loading:
-        ProgressView("Oturum kontrol ediliyor…")
+        VStack(spacing: .rdXL) {
+          RDBrandMark()
+          ProgressView("Oturum kontrol ediliyor…").foregroundStyle(RDColor.textSecondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(RDColor.background.ignoresSafeArea())
       case .signedOut:
         LoginView(session: app.session)
       case .signedIn(let context):
@@ -82,10 +91,10 @@ struct AppRootView: View {
 /// Supabase ayarları eksikse (Secrets.xcconfig yok) açıklayıcı ekran.
 struct ConfigMissingView: View {
   var body: some View {
-    ContentUnavailableView(
-      "Sunucu ayarı eksik",
-      systemImage: "exclamationmark.triangle",
-      description: Text("ios/Config/Secrets.xcconfig dosyasını Secrets.example.xcconfig'ten oluşturup SUPABASE_URL ve SUPABASE_ANON_KEY değerlerini girin.")
-    )
+    RDStateView(kind: .empty(
+      title: "Sunucu ayarı eksik",
+      message: "ios/Config/Secrets.xcconfig dosyasını Secrets.example.xcconfig'ten oluşturup SUPABASE_URL ve SUPABASE_ANON_KEY değerlerini girin.",
+      symbol: "exclamationmark.triangle"))
+      .background(RDColor.background.ignoresSafeArea())
   }
 }

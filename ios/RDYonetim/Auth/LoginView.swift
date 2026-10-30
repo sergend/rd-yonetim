@@ -1,73 +1,69 @@
 import RDCore
+import RDDesign
 import SwiftUI
 
 struct LoginView: View {
   @Bindable var session: SessionViewModel
-  @FocusState private var focused: Field?
-
-  enum Field { case email, password }
+  @FocusState private var emailFocused: Bool
+  @FocusState private var passwordFocused: Bool
 
   var body: some View {
     ScrollView {
-      VStack(spacing: 28) {
-        VStack(spacing: 8) {
-          Image(systemName: "building.2.crop.circle.fill")
-            .font(.system(size: 64))
-            .foregroundStyle(Theme.accent)
-          Text("RD Yönetim")
-            .font(.largeTitle.weight(.bold))
+      VStack(spacing: .rdXXL) {
+        VStack(spacing: .rdS) {
+          RDBrandMark()
           Text("RD İnşaat proje ve cari takibi")
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
+            .font(RDFont.secondary)
+            .foregroundStyle(RDColor.textSecondary)
         }
-        .padding(.top, 48)
+        .padding(.top, .rdXXL * 2)
 
-        VStack(spacing: 12) {
-          TextField("E-posta", text: $session.email)
+        VStack(spacing: .rdL) {
+          RDTextField(label: "E-posta", text: $session.email, prompt: "ad.soyad@rdinsaat.com", focus: $emailFocused)
             .textContentType(.username)
             .keyboardType(.emailAddress)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
-            .focused($focused, equals: .email)
             .submitLabel(.next)
-            .onSubmit { focused = .password }
-          SecureField("Şifre", text: $session.password)
+            .onSubmit { passwordFocused = true }
+          RDTextField(label: "Şifre", text: $session.password, isSecure: true, focus: $passwordFocused)
             .textContentType(.password)
-            .focused($focused, equals: .password)
             .submitLabel(.go)
-            .onSubmit { Task { await session.signIn() } }
-        }
-        .textFieldStyle(.roundedBorder)
-
-        ErrorBanner(message: session.errorMessage)
-        if let info = session.infoMessage {
-          Label(info, systemImage: "envelope").font(.callout).foregroundStyle(.secondary)
+            .onSubmit { submit() }
         }
 
-        Button {
-          Task { await session.signIn() }
-        } label: {
-          Group {
-            if session.isWorking { ProgressView() } else { Text("Giriş yap") }
+        VStack(spacing: .rdM) {
+          RDErrorBanner(message: session.errorMessage)
+          if let info = session.infoMessage {
+            Label(info, systemImage: "envelope")
+              .font(RDFont.secondary)
+              .foregroundStyle(RDColor.textSecondary)
+              .frame(maxWidth: .infinity, alignment: .leading)
           }
-          .frame(maxWidth: .infinity)
+          RDPrimaryButton(title: "Giriş yap", isLoading: session.isWorking, action: submit)
+            .disabled(!session.canSubmit)
+          Button("Şifremi unuttum") { Task { await session.sendPasswordReset() } }
+            .font(RDFont.secondary.weight(.semibold))
+            .frame(minHeight: Metrics.minTouchTarget)
+            .disabled(session.isWorking)
         }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
-        .disabled(!session.canSubmit)
-
-        Button("Şifremi unuttum") { Task { await session.sendPasswordReset() } }
-          .font(.callout)
-          .disabled(session.isWorking)
 
         Text("Hesaplar yalnızca yönetici tarafından açılır.")
-          .font(.footnote)
-          .foregroundStyle(.secondary)
+          .font(RDFont.caption)
+          .foregroundStyle(RDColor.textSecondary)
+          .multilineTextAlignment(.center)
       }
-      .padding(.horizontal, 24)
+      .padding(.horizontal, .rdXL)
       .frame(maxWidth: 480)
+      .frame(maxWidth: .infinity)
     }
     .scrollDismissesKeyboard(.interactively)
-    .background(Theme.pageBackground)
+    .background(RDColor.background.ignoresSafeArea())
+  }
+
+  private func submit() {
+    emailFocused = false
+    passwordFocused = false
+    Task { await session.signIn() }
   }
 }

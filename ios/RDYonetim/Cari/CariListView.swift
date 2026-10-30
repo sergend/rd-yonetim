@@ -1,4 +1,5 @@
 import RDCore
+import RDDesign
 import SwiftUI
 
 struct CariListView: View {
@@ -15,47 +16,40 @@ struct CariListView: View {
 
   var body: some View {
     List {
-      if let error = model.errorMessage {
-        ErrorBanner(message: error).listRowBackground(Color.clear)
+      if let error = model.errorMessage, !model.accounts.isEmpty {
+        RDErrorBanner(message: error).listRowBackground(Color.clear).listRowInsets(EdgeInsets())
       }
-      Section {
-        Picker("Tür", selection: $model.typeFilter) {
-          Text("Tüm türler").tag(CariType?.none)
-          ForEach(CariType.allCases) { Text($0.title).tag(Optional($0)) }
-        }
-        if model.canSeeBalances {
-          Picker("Bakiye kapsamı", selection: $model.filter.projectId) {
-            Text("Tüm projeler ve genel").tag(UUID?.none)
-            ForEach(app.projects) { Text($0.name).tag(Optional($0.id)) }
-          }
-        }
-      }
-      .onChange(of: model.typeFilter) { _, _ in Task { await model.load() } }
-      .onChange(of: model.filter) { _, _ in Task { await model.load() } }
-
       Section {
         ForEach(model.filtered) { account in
           NavigationLink(value: AppRoute.cari(account)) {
             CariRow(account: account, balance: model.balance(for: account), showBalance: model.canSeeBalances)
           }
         }
+      } header: {
+        Text(filterSummary)
       } footer: {
         if model.canSeeBalances {
           Text("Bakiye = borç − alacak. Eksi bakiye, karşı tarafa borçlu olduğumuzu gösterir.")
         }
       }
+      .rdRowBackground()
     }
-    .overlay {
-      if model.filtered.isEmpty && !model.isLoading {
-        ContentUnavailableView("Cari yok", systemImage: AppModule.cari.symbol,
-                               description: Text("Filtreye uyan cari hesap bulunamadı."))
-      }
-    }
+    .listStyle(.insetGrouped)
+    .rdScreen()
+    .rdContentState(isLoading: model.isLoading, isEmpty: model.filtered.isEmpty, error: model.errorMessage,
+                    empty: .empty(title: "Cari yok", message: "Filtreye uyan cari hesap bulunamadı.",
+                                  symbol: AppModule.cari.symbol),
+                    retry: { Task { await model.load() } })
+    .onChange(of: model.typeFilter) { _, _ in Task { await model.load() } }
+    .onChange(of: model.filter) { _, _ in Task { await model.load() } }
     .searchable(text: $model.searchText, prompt: "Unvan veya kod")
     .navigationTitle(app.projectName(model.filter.projectId) ?? "Cari hesaplar")
     .toolbar {
+      ToolbarItem(placement: .topBarLeading) { filterMenu }
       if model.canCreate {
-        Button("Yeni cari", systemImage: "plus") { showingForm = true }
+        ToolbarItem(placement: .primaryAction) {
+          Button("Yeni cari", systemImage: "plus") { showingForm = true }
+        }
       }
     }
     .sheet(isPresented: $showingForm) {
@@ -63,6 +57,29 @@ struct CariListView: View {
     }
     .refreshable { await model.load() }
     .task { await model.load() }
+  }
+
+  private var filterSummary: String {
+    let type = model.typeFilter?.title ?? "Tüm türler"
+    guard model.canSeeBalances else { return type }
+    return "\(type) · \(app.projectName(model.filter.projectId) ?? "tüm projeler ve genel")"
+  }
+
+  private var filterMenu: some View {
+    Menu {
+      Picker("Tür", selection: $model.typeFilter) {
+        Text("Tüm türler").tag(CariType?.none)
+        ForEach(CariType.allCases) { Text($0.title).tag(Optional($0)) }
+      }
+      if model.canSeeBalances {
+        Picker("Bakiye kapsamı", selection: $model.filter.projectId) {
+          Text("Tüm projeler ve genel").tag(UUID?.none)
+          ForEach(app.projects) { Text($0.name).tag(Optional($0.id)) }
+        }
+      }
+    } label: {
+      Label("Filtre", systemImage: "line.3.horizontal.decrease.circle")
+    }
   }
 }
 
@@ -72,24 +89,12 @@ private struct CariRow: View {
   let showBalance: Bool
 
   var body: some View {
-    HStack {
-      VStack(alignment: .leading, spacing: 3) {
-        HStack(spacing: 6) {
-          Text(account.title).font(.body.weight(.medium)).lineLimit(1)
-          if account.isDemo { DemoBadge() }
-        }
-        HStack(spacing: 6) {
-          Text(account.code)
-          Text("·")
-          Text(account.type.title)
-          if !account.isActive { StatusBadge(text: "Pasif") }
-        }
-        .font(.caption)
-        .foregroundStyle(.secondary)
-      }
-      Spacer()
+    RDRow(title: account.title, subtitle: "\(account.code) · \(account.type.title)") {
+      if account.isDemo { RDDemoBadge() }
+      if !account.isActive { RDStatusBadge(text: "Pasif") }
+    } trailing: {
       if showBalance {
-        AmountText(amount: balance?.balanceTry ?? 0, colored: true).font(.callout)
+        RDAmount(amount: balance?.balanceTry ?? 0, showsSide: true).font(RDFont.secondary.weight(.semibold))
       }
     }
   }
@@ -113,11 +118,13 @@ struct CariFormView: View {
             .autocorrectionDisabled()
           Toggle("Aktif", isOn: $model.isActive)
         }
+        .rdRowBackground()
         Section("Vergi") {
           TextField("VKN / TCKN", text: $model.taxNumber).keyboardType(.numberPad)
           TextField("Vergi dairesi", text: $model.taxOffice)
         }
-        Section("İletişim") {
+        .rdRowBackground()
+        Section("İletişim ve banka") {
           TextField("Telefon", text: $model.phone).keyboardType(.phonePad)
           TextField("E-posta", text: $model.email)
             .keyboardType(.emailAddress)
@@ -127,15 +134,16 @@ struct CariFormView: View {
             .textInputAutocapitalization(.characters)
             .autocorrectionDisabled()
         }
+        .rdRowBackground()
         Section {
           TextField("Not", text: $model.notes, axis: .vertical).lineLimit(2...5)
         } footer: {
           Text("Bakiye bu formda düzenlenmez; yalnızca cari hareketlerden hesaplanır.")
         }
-        if let message = model.errorMessage ?? model.validationMessage {
-          Section { Text(message).foregroundStyle(.red).font(.callout) }
-        }
+        .rdRowBackground()
+        RDFormMessage(message: model.errorMessage ?? model.validationMessage)
       }
+      .rdScreen()
       .navigationTitle(model.formTitle)
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
@@ -149,6 +157,7 @@ struct CariFormView: View {
               }
             }
           }
+          .fontWeight(.semibold)
           .disabled(!model.canSave)
         }
       }

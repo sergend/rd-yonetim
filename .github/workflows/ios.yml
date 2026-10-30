@@ -31,11 +31,11 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ios/RDCore/.build
-          key: rdcore-linux-${{ hashFiles('ios/RDCore/Package.resolved') }}
+          key: rdcore-linux-v2-${{ hashFiles('ios/RDCore/Package.resolved') }}
       - name: swift test (model, doğrulama, yetki, ViewModel)
         run: |
-          docker run --rm -v "$PWD/ios/RDCore:/w" -w /w "$SWIFT_IMAGE" \
-            swift test $LINUX_LINK_FLAGS --filter RDCoreTests
+          docker run --rm -v "$PWD/ios:/w" -w /w/RDCore "$SWIFT_IMAGE" \
+            swift test $LINUX_LINK_FLAGS --filter "RDCoreTests|RDDesignTests"
 
   rdcore-integration:
     name: Supabase repository entegrasyon testleri (yerel Supabase)
@@ -49,14 +49,14 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ios/RDCore/.build
-          key: rdcore-linux-${{ hashFiles('ios/RDCore/Package.resolved') }}
+          key: rdcore-linux-v2-${{ hashFiles('ios/RDCore/Package.resolved') }}
       - name: Yerel Supabase (Auth + REST) başlat, deneme verisini yükle
         run: supabase start -x studio,imgproxy,inbucket,realtime,storage-api,edge-runtime,logflare,vector,supavisor,postgres-meta
       - name: Repository'leri gerçek API'ye karşı test et
         run: |
           eval "$(supabase status -o env | grep -E '^(API_URL|ANON_KEY)=')"
           docker run --rm --network host -e RD_SUPABASE_URL="$API_URL" -e RD_SUPABASE_ANON_KEY="$ANON_KEY" \
-            -v "$PWD/ios/RDCore:/w" -w /w "$SWIFT_IMAGE" \
+            -v "$PWD/ios:/w" -w /w/RDCore "$SWIFT_IMAGE" \
             swift test $LINUX_LINK_FLAGS --filter RDSupabaseIntegrationTests
 
   ios-build:
@@ -75,4 +75,4 @@ jobs:
             -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO build
       - name: RDCore testleri (macOS)
         working-directory: ios/RDCore
-        run: swift test --filter RDCoreTests
+        run: swift test --filter "RDCoreTests|RDDesignTests"

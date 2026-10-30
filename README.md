@@ -1,4 +1,4 @@
-# RD Yönetim
+# RD Yönetim (uygulama adı: RD Projeler)
 
 RD İnşaat'ın proje maliyetleri, cari hesaplar, taşeronlar, puantaj, hakediş ve
 operasyonel raporlaması için iPhone uygulaması (SwiftUI) ve Supabase
@@ -12,7 +12,8 @@ Mimari: [Teknik Mimari Önerisi](https://claude.ai/artifact/6gdNhhjhSuDdodf55R3d
 | Aşama | Kapsam | Durum |
 | --- | --- | --- |
 | 0 | Veritabanı temeli: kullanıcı/rol/izin, proje, audit log, RLS, testler, yedekleme | Tamamlandı |
-| 1 | iOS iskeleti, giriş, ana ekran, proje, iş takibi ve cari | İncelemede |
+| 1 | iOS iskeleti, giriş, ana ekran, proje, iş takibi ve cari | Tamamlandı |
+| 1.5 | RD Projeler kurumsal kimlik ve iOS tasarım sistemi | İncelemede |
 
 ## Yedekleme durumu (önemli)
 
@@ -61,6 +62,7 @@ npx supabase db reset      # sıfırdan kur
 ```
 
 iOS uygulamasını Mac'te açma ve test etme: [docs/ios-mac-setup.md](docs/ios-mac-setup.md).
+Tasarım sistemi: [docs/design-system.md](docs/design-system.md). Logo ve ikon: [docs/brand-assets.md](docs/brand-assets.md).
 
 ## Güvenlik kuralları
 

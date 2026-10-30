@@ -1,4 +1,5 @@
 import RDCore
+import RDDesign
 import SwiftUI
 
 struct ProjectListView: View {
@@ -13,34 +14,27 @@ struct ProjectListView: View {
 
   var body: some View {
     List {
-      if let error = model.errorMessage {
-        ErrorBanner(message: error).listRowBackground(Color.clear)
+      if let error = model.errorMessage, !model.projects.isEmpty {
+        RDErrorBanner(message: error).listRowBackground(Color.clear).listRowInsets(EdgeInsets())
       }
-      Toggle("Tamamlananları göster", isOn: $model.includeCompleted)
-        .onChange(of: model.includeCompleted) { _, _ in Task { await model.load() } }
-      ForEach(model.filtered) { project in
-        NavigationLink(value: AppRoute.project(project)) {
-          VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-              Text(project.name).font(.body.weight(.medium))
-              if project.isDemo { DemoBadge() }
-            }
-            HStack {
-              Text([project.code, project.city].compactMap { $0 }.joined(separator: " · "))
-                .font(.subheadline).foregroundStyle(.secondary)
-              Spacer()
-              StatusBadge(text: project.status.title, color: project.status.color)
-            }
-          }
+      Section {
+        ForEach(model.filtered) { project in
+          NavigationLink(value: AppRoute.project(project)) { ProjectRow(project: project) }
         }
+      } footer: {
+        Toggle("Tamamlananları göster", isOn: $model.includeCompleted)
+          .font(RDFont.secondary)
+          .padding(.top, .rdS)
       }
+      .rdRowBackground()
     }
-    .overlay {
-      if model.filtered.isEmpty && !model.isLoading {
-        ContentUnavailableView("Proje yok", systemImage: "building.2",
-                               description: Text("Görüntüleme yetkiniz olan proje bulunamadı."))
-      }
-    }
+    .listStyle(.insetGrouped)
+    .rdScreen()
+    .onChange(of: model.includeCompleted) { _, _ in Task { await model.load() } }
+    .rdContentState(isLoading: model.isLoading, isEmpty: model.filtered.isEmpty, error: model.errorMessage,
+                    empty: .empty(title: "Proje yok", message: "Görüntüleme yetkiniz olan proje bulunamadı.",
+                                  symbol: "building.2"),
+                    retry: { Task { await model.load() } })
     .searchable(text: $model.searchText, prompt: "Proje adı, kodu veya şehir")
     .navigationTitle("Projeler")
     .toolbar {
@@ -73,42 +67,68 @@ struct ProjectDetailView: View {
     let project = model.project
     List {
       if let error = model.errorMessage {
-        ErrorBanner(message: error).listRowBackground(Color.clear)
+        RDErrorBanner(message: error).listRowBackground(Color.clear).listRowInsets(EdgeInsets())
       }
       Section {
-        LabeledContent("Kod", value: project.code)
-        LabeledContent("Durum") { StatusBadge(text: project.status.title, color: project.status.color) }
-        if let city = project.city { LabeledContent("Şehir", value: city) }
-        if let address = project.address { LabeledContent("Adres", value: address) }
-        if let start = project.startDate { LabeledContent("Başlangıç", value: start.display) }
-        if let end = project.endDate { LabeledContent("Bitiş", value: end.display) }
+        VStack(alignment: .leading, spacing: .rdS) {
+          HStack(spacing: .rdS) {
+            RDStatusBadge(text: project.status.title, tone: project.status.tone)
+            if project.isDemo { RDDemoBadge() }
+          }
+          Text(project.name)
+            .font(RDFont.sectionTitle)
+            .foregroundStyle(RDColor.textPrimary)
+          Text([project.code, project.city].compactMap { $0 }.joined(separator: " · "))
+            .font(RDFont.secondary)
+            .foregroundStyle(RDColor.textSecondary)
+        }
+        .padding(.vertical, .rdXS)
         if project.isDemo {
-          Label("Bu bir demo projedir; kayıtları gerçek verilere karışmaz.", systemImage: "info.circle")
-            .font(.footnote).foregroundStyle(.orange)
+          Label("Demo proje: kayıtları gerçek verilere karışmaz.", systemImage: "info.circle")
+            .font(RDFont.caption)
+            .foregroundStyle(RDColor.tone(.warning))
         }
       }
-      if let notes = project.notes {
-        Section("Notlar") { Text(notes) }
+      .rdRowBackground()
+
+      Section("Bilgiler") {
+        if let address = project.address { RDInfoRow(label: "Adres", value: address) }
+        RDInfoRow(label: "Başlangıç", value: project.startDate?.display ?? "Belirtilmedi")
+        RDInfoRow(label: "Bitiş", value: project.endDate?.display ?? "Belirtilmedi")
+        if let notes = project.notes { RDInfoRow(label: "Not", value: notes) }
       }
+      .rdRowBackground()
+
       if model.canSeeTasks {
         Section {
+          if model.tasks.isEmpty {
+            Text("Açık iş yok.").foregroundStyle(RDColor.textSecondary)
+          }
           ForEach(model.tasks.prefix(5)) { task in
             TaskRow(task: task, projectName: nil)
           }
-          NavigationLink("Tüm işler", value: AppRoute.tasks(projectId: project.id))
+          NavigationLink(value: AppRoute.tasks(projectId: project.id)) {
+            Text("Projenin tüm işleri").foregroundStyle(RDColor.brandText)
+          }
         } header: {
           Text("Açık işler (\(model.tasks.count))")
         }
+        .rdRowBackground()
       }
+
       if model.canSeeCari {
         Section("Finans") {
           NavigationLink(value: AppRoute.cariList(projectId: project.id)) {
-            Label("Proje carileri ve bakiyeler", systemImage: AppModule.cari.symbol)
+            RDRow(symbol: AppModule.cari.symbol, symbolTint: RDColor.brandText,
+                  title: "Proje carileri", subtitle: "Bakiyeler ve hareketler")
           }
         }
+        .rdRowBackground()
       }
     }
-    .navigationTitle(project.name)
+    .listStyle(.insetGrouped)
+    .rdScreen()
+    .navigationTitle(project.code)
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {
       if model.canEdit {
@@ -142,10 +162,12 @@ struct ProjectFormView: View {
             ForEach(ProjectStatus.allCases) { Text($0.title).tag($0) }
           }
         }
+        .rdRowBackground()
         Section("Konum") {
           TextField("Şehir", text: $model.city)
           TextField("Adres", text: $model.address, axis: .vertical)
         }
+        .rdRowBackground()
         Section("Tarihler") {
           Toggle("Başlangıç tarihi", isOn: $model.hasStartDate)
           if model.hasStartDate {
@@ -156,13 +178,14 @@ struct ProjectFormView: View {
             DatePicker("Bitiş", selection: $model.endDate, displayedComponents: .date)
           }
         }
+        .rdRowBackground()
         Section("Notlar") {
           TextField("Not", text: $model.notes, axis: .vertical).lineLimit(3...6)
         }
-        if let message = model.errorMessage ?? model.validationMessage {
-          Section { Text(message).foregroundStyle(.red).font(.callout) }
-        }
+        .rdRowBackground()
+        RDFormMessage(message: model.errorMessage ?? model.validationMessage)
       }
+      .rdScreen()
       .environment(\.locale, Money.locale)
       .navigationTitle(model.title)
       .navigationBarTitleDisplayMode(.inline)
@@ -177,6 +200,7 @@ struct ProjectFormView: View {
               }
             }
           }
+          .fontWeight(.semibold)
           .disabled(!model.canSave)
         }
       }

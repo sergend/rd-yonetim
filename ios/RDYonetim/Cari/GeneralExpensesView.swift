@@ -1,4 +1,5 @@
 import RDCore
+import RDDesign
 import SwiftUI
 
 /// Projeye bağlı olmayan şirket genel giderleri (merkez ofis, araçlar...).
@@ -13,44 +14,43 @@ struct GeneralExpensesView: View {
 
   var body: some View {
     List {
-      if let error = model.errorMessage {
-        ErrorBanner(message: error).listRowBackground(Color.clear)
+      if let error = model.errorMessage, !model.costCenters.isEmpty {
+        RDErrorBanner(message: error).listRowBackground(Color.clear).listRowInsets(EdgeInsets())
       }
       ForEach(model.costCenters) { center in
         Section {
           let balances = model.balances(for: center)
           if balances.isEmpty {
-            Text("Bu merkezde henüz hareket yok.").foregroundStyle(.secondary)
+            Text("Bu merkezde henüz hareket yok.").foregroundStyle(RDColor.textSecondary)
           }
           ForEach(balances, id: \.cariAccountId) { balance in
             if let account = model.accounts[balance.cariAccountId] {
               NavigationLink(value: AppRoute.cari(account)) {
-                HStack {
-                  Text(account.title).lineLimit(1)
-                  Spacer()
-                  AmountText(amount: balance.balanceTry, colored: true).font(.callout)
+                RDRow(title: account.title, subtitle: account.type.title) {
+                  RDAmount(amount: balance.balanceTry, showsSide: true).font(RDFont.secondary.weight(.semibold))
                 }
               }
             }
           }
         } header: {
-          HStack(spacing: 6) {
+          HStack(spacing: .rdS) {
             Text(center.name)
-            if center.isDemo { DemoBadge() }
-            if !center.isActive { StatusBadge(text: "Pasif") }
+            if center.isDemo { RDDemoBadge() }
+            if !center.isActive { RDStatusBadge(text: "Pasif") }
           }
         } footer: {
           Text("Bu merkeze yazılan toplam: \(Money.format(model.totalAlacak(for: center)))")
         }
+        .rdRowBackground()
       }
     }
-    .overlay {
-      if model.costCenters.isEmpty && !model.isLoading {
-        ContentUnavailableView("Masraf merkezi yok", systemImage: AppModule.genelGider.symbol,
-                               description: Text("Genel gider merkezlerini yönetici tanımlar."))
-      }
-    }
-    .navigationTitle("Şirket genel giderleri")
+    .listStyle(.insetGrouped)
+    .rdScreen()
+    .rdContentState(isLoading: model.isLoading, isEmpty: model.costCenters.isEmpty, error: model.errorMessage,
+                    empty: .empty(title: "Masraf merkezi yok", message: "Genel gider merkezlerini yönetici tanımlar.",
+                                  symbol: AppModule.genelGider.symbol),
+                    retry: { Task { await model.load() } })
+    .navigationTitle("Genel giderler")
     .refreshable { await model.load() }
     .task { await model.load() }
   }

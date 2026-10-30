@@ -2,6 +2,7 @@
 // RD Yönetim çekirdeği: modeller, repository arayüzleri ve ViewModel'ler.
 // RDCore hiçbir dış bağımlılık içermez; Linux'ta (GitHub Actions) derlenip test edilir.
 // RDSupabase, repository arayüzlerinin Supabase uygulamasıdır.
+// RDDesign, RD Projeler tasarım sisteminin platformdan bağımsız token'larıdır.
 import PackageDescription
 
 let package = Package(
@@ -10,17 +11,21 @@ let package = Package(
   products: [
     .library(name: "RDCore", targets: ["RDCore"]),
     .library(name: "RDSupabase", targets: ["RDSupabase"]),
+    .library(name: "RDDesign", targets: ["RDDesign"]),
   ],
   dependencies: [
     .package(url: "https://github.com/supabase/supabase-swift.git", .upToNextMajor(from: "2.49.0")),
   ],
   targets: [
     .target(name: "RDCore"),
+    // Tasarım token'ları: SwiftUI'dan bağımsız değerler; kontrastları Linux'ta test edilir.
+    .target(name: "RDDesign", dependencies: ["RDCore"]),
     .target(
       name: "RDSupabase",
       dependencies: ["RDCore", .product(name: "Supabase", package: "supabase-swift")]
     ),
     .testTarget(name: "RDCoreTests", dependencies: ["RDCore"]),
+    .testTarget(name: "RDDesignTests", dependencies: ["RDDesign", "RDCore"]),
     .testTarget(name: "RDSupabaseIntegrationTests", dependencies: ["RDCore", "RDSupabase"]),
   ]
 )

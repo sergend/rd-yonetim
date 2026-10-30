@@ -56,14 +56,18 @@ biçimi bilerek böyledir (xcconfig'te `//` yorum başlatır).
 - [ ] Şirket genel giderleri → Merkez ofis altında hareket ve bakiye.
 - [ ] Çıkış yapıp `sef@example.test` ile giriş: Cari hesaplar ve genel giderler modülleri **görünmemeli**; proje detayında "Finans" bölümü olmamalı.
 - [ ] Puantaj, Hakediş vb. "Sonraki aşamalarda" bölümünde; açınca veri girişi sunmayan bilgi ekranı.
-- [ ] Ayarlar → Görünüm → Koyu: tüm ekranlar okunaklı olmalı.
+- [ ] Ayarlar → Görünüm → Koyu: tüm ekranlar okunaklı olmalı; kırmızı metinler koyu zeminde açık tonda.
+- [ ] Ayarlar → Erişilebilirlik → Ekran ve Metin Boyutu → Daha Büyük Metin (en büyük): satırlar alt alta diziliyor, metin kesilmiyor.
+- [ ] Ana ekran adı ve başlık "RD Projeler"; logo henüz yok (bilinçli, bkz. docs/brand-assets.md).
+- [ ] İş takibinde daire simgesine tek dokunuş işi tamamlıyor.
+- [ ] Xcode Canvas'ta "Tasarım sistemi" önizlemesi açık ve koyu temada açılıyor.
 - [ ] Uygulamayı kapatıp açın: oturum hatırlanmalı (Keychain).
 
 ## 5. Otomatik testler
 
 ```bash
 cd ios/RDCore
-swift test --filter RDCoreTests                 # model, doğrulama, yetki, ViewModel
+swift test --filter "RDCoreTests|RDDesignTests" # model, doğrulama, yetki, ViewModel, tasarım token'ları
 RD_SUPABASE_URL=http://127.0.0.1:54321 RD_SUPABASE_ANON_KEY=<anon key> \
   swift test --filter RDSupabaseIntegrationTests # gerçek yerel API'ye karşı
 ```
@@ -80,4 +84,4 @@ başlangıç için `npx supabase db reset`.
 - `RDYonetim.xcodeproj` elle yazıldı; ilk açılışta Xcode bir düzeltme önerirse kabul edilebilir.
 - Keychain'de oturum saklama, klavye/odak davranışı, koyu mod görünümü ve
   gerçek cihaz davranışı yalnızca Mac/iPhone'da görülebilir.
-- Uygulama ikonu boştur (yer tutucu).
+- Uygulama ikonu ve logo boştur; orijinal dosyalar bekleniyor (docs/brand-assets.md).
