@@ -506,12 +506,14 @@ as $$
    group by e.cari_account_id;
 $$;
 
--- Cari ekstresi: devir (p_from öncesi) bakiyesiyle birlikte yürüyen bakiye.
+-- Cari ekstresi: devir (p_from öncesi) bakiyesiyle birlikte yürüyen bakiye;
+-- proje veya genel gider merkezine göre süzülebilir.
 create or replace function public.cari_statement(
   p_cari_account_id uuid,
   p_project_id      uuid default null,
   p_from            date default null,
-  p_to              date default null)
+  p_to              date default null,
+  p_cost_center_id  uuid default null)
 returns table (
   id                  uuid,
   entry_date          date,
@@ -541,6 +543,7 @@ as $$
       from public.cari_entries e
      where e.cari_account_id = p_cari_account_id
        and (p_project_id is null or e.project_id = p_project_id)
+       and (p_cost_center_id is null or e.cost_center_id = p_cost_center_id)
        and (p_to is null or e.entry_date <= p_to)
   ),
   running as (
@@ -598,7 +601,7 @@ grant execute on function public.reverse_cari_entry(uuid, text, uuid) to authent
 grant execute on function public.allocate_cari_entry(uuid, uuid, numeric, text) to authenticated;
 grant execute on function public.cancel_cari_allocation(uuid) to authenticated;
 grant execute on function public.cari_balances(uuid, uuid, date) to authenticated;
-grant execute on function public.cari_statement(uuid, uuid, date, date) to authenticated;
+grant execute on function public.cari_statement(uuid, uuid, date, date, uuid) to authenticated;
 grant select on public.v_cari_entry_status to authenticated;
 
 -- -----------------------------------------------------------------------------
