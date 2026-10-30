@@ -83,7 +83,9 @@ Yeni bileşen yalnızca en az iki ekranda kullanılacaksa eklenir.
 - **Ana sayfa:** başlık "RD Projeler"; selamlama ve tarih; özet sayılar (aktif
   proje, açık iş, bana atanan, geciken). Kartlar yerine gruplu liste: aktif
   projeler (en fazla 5), bana atanan işler, modüller, "Sonraki aşamalarda".
-  **Tutar, kasa veya banka bakiyesi yok**; bunu bir test de denetler.
+  **Tutar, kasa veya banka bakiyesi yok**. `HomeScreenRuleTests` yalnızca
+  kaynak kodu tarar; gerçek ekrandaki doğrulama `docs/ios-mac-setup.md`
+  elle test listesindedir.
 - **Projeler / proje detayı:** ortak `ProjectRow`; detayda durum ve demo etiketi,
   bilgi satırları, açık işler, yetkiliyse finans bağlantısı.
 - **Cari listesi:** tür ve bakiye kapsamı filtreleri araç çubuğundaki "Filtre"

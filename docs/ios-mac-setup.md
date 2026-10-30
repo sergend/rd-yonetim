@@ -49,6 +49,7 @@ biçimi bilerek böyledir (xcconfig'te `//` yorum başlatır).
 ## 4. Elle test adımları
 
 - [ ] `muhasebe@example.test` ile giriş; ana ekranda **hiçbir tutar yok**, yalnızca proje, iş sayıları ve modüller.
+- [ ] Ana ekran finans kuralı ayrıca elle doğrulanır (kaynak taraması olan `HomeScreenRuleTests` tek başına kanıt değildir): `muhasebe@example.test` ve `sef@example.test` ile açık ve koyu temada, en büyük metin boyutunda ana ekranı en alta kadar kaydırın; hiçbir yerde ₺/TL tutarı, kasa veya banka bakiyesi görünmemeli.
 - [ ] Projeler → yeni proje ekle, düzenle; aynı kodla ikinci proje reddedilmeli.
 - [ ] Cari hesaplar → yeni cari (VKN 10 hane, IBAN kontrolü); listede bakiye görünmeli.
 - [ ] Cari detay → hareket ekle (Ödeme: yön otomatik "Borç"); proje ve tarih filtresiyle ekstre ve bakiye değişmeli.
