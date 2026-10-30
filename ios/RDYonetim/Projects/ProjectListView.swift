@@ -116,6 +116,16 @@ struct ProjectDetailView: View {
         .rdRowBackground()
       }
 
+      if app.access.can(.gorevlendirmeRead, in: project.id) {
+        Section("Saha") {
+          NavigationLink(value: AppRoute.projectWorkforce(project)) {
+            RDRow(symbol: AppModule.ekipler.symbol, symbolTint: RDColor.brandText,
+                  title: "Ekip ve personel", subtitle: "Bugün sahada olanlar, taşeronlar ve görevlendirmeler")
+          }
+        }
+        .rdRowBackground()
+      }
+
       if model.canSeeCari {
         Section("Finans") {
           NavigationLink(value: AppRoute.cariList(projectId: project.id)) {
