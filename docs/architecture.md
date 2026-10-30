@@ -1,4 +1,4 @@
-# Mimari özet (Aşama 0 ve 1)
+# Mimari özet (Aşama 0, 1 ve 2)
 
 Tam doküman: [Teknik Mimari Önerisi](https://claude.ai/artifact/6gdNhhjhSuDdodf55R3dn9).
 Bu dosya yalnızca veritabanında şu an uygulanmış olanı özetler.
@@ -28,6 +28,14 @@ Bu dosya yalnızca veritabanında şu an uygulanmış olanı özetler.
 | `cari_entries` | Cari defter: yalnızca eklenir, değiştirilemez/silinemez; iptal ters kayıtla. Her hareket ya bir projeye ya bir masraf merkezine bağlı. `(source_type, source_id)` benzersiz: aynı kaynak belge iki kez borç/alacak oluşturamaz |
 | `cari_allocations` | Kısmi ödeme ve avans eşleştirmesi; toplam, hareket tutarını aşamaz |
 | `tasks` | İş takibi; proje boşsa şirket geneli |
+| `subcontractors` | Taşeron kartı (ad, iş kolu, iletişim, not). Finansal kimlik bağlı cari karttır; bir cari kart en fazla bir taşerona bağlanır |
+| `subcontractor_documents` | Taşeron belge bilgisi (ad, numara, geçerlilik); dosya eki yok |
+| `subcontractor_projects` | Taşeronun çalıştığı proje ve dönem; aynı projede çakışan dönem yok |
+| `personnel` | Personel kimliği (ad, görev, iş kolu, çalışma ilişkisi, taşeron). TCKN/banka/adres yok |
+| `personnel_contacts` | Personel telefonu; ayrı izinle (`personel_iletisim.read`) okunur |
+| `crews` | Ekip; taşerona ya da şirkete bağlı, isteğe bağlı sorumlu |
+| `crew_memberships` | Tarihli ekip üyeliği; silinmez, kişi aynı anda tek ekipte |
+| `project_assignments` | Kişi veya ekibin projedeki görev dönemi; silinmez, aynı projede çakışma yok |
 
 `projects`, `cost_centers` ve `cari_accounts` üzerindeki `is_demo` işareti demo
 kayıtları ayırır: demo cari ile gerçek proje (veya tersi) aynı harekette
@@ -56,6 +64,28 @@ kullanılamaz ve işaret sonradan değiştirilemez.
 uygulaması) → `RDYonetim` (yalnızca SwiftUI görünümleri). Tek dış bağımlılık
 supabase-swift'tir. Ekranlardaki yetki kontrolü `my_permissions()` sonucuna
 göre menüyü sadeleştirir; asıl koruma RLS'tir.
+
+## Taşeron, personel ve ekip (Aşama 2)
+
+- Kartlar şirket genelidir ve genel izinle (`taseron.write`, `personel.write`)
+  yazılır; görevlendirmeler projeye aittir ve `gorevlendirme.write` proje
+  izniyle yazılır.
+- Proje kapsamlı okuma yalnızca o projeyle ilişkili kayıtları açar (ayrıntı:
+  [karar 0003](decisions/0003-asama-2-kararlari.md), madde 11).
+- `assignment_candidates(proje)`: görevlendirme ekranının seçim listesi (ad ve
+  görev; iletişim yok). `project_workforce(proje, gün)`: o gün sahada olanlar;
+  puantaj buna bağlanacak.
+- Hiçbir kayıt cari deftere yazmaz.
+
+| İzin | Yönetici | İdari işler | Muhasebe | Şantiye şefi (proje) | Görüntüleyici (proje) |
+| --- | --- | --- | --- | --- | --- |
+| `taseron.read` | ✓ | ✓ | ✓ | ✓ | |
+| `taseron.write` | ✓ | ✓ | | | |
+| `personel.read` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `personel.write` | ✓ | ✓ | | | |
+| `personel_iletisim.read` | ✓ | ✓ | | ✓ | |
+| `gorevlendirme.read` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `gorevlendirme.write` | ✓ | ✓ | | ✓ | |
 
 ## Etkin izin
 

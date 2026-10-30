@@ -13,7 +13,8 @@ Mimari: [Teknik Mimari Önerisi](https://claude.ai/artifact/6gdNhhjhSuDdodf55R3d
 | --- | --- | --- |
 | 0 | Veritabanı temeli: kullanıcı/rol/izin, proje, audit log, RLS, testler, yedekleme | Tamamlandı |
 | 1 | iOS iskeleti, giriş, ana ekran, proje, iş takibi ve cari | Tamamlandı |
-| 1.5 | RD Projeler kurumsal kimlik ve iOS tasarım sistemi | İncelemede |
+| 1.5 | RD Projeler kurumsal kimlik ve iOS tasarım sistemi | Tamamlandı |
+| 2 | Taşeron, personel, ekip ve proje görevlendirmeleri | İncelemede |
 
 ## Yedekleme durumu (önemli)
 
