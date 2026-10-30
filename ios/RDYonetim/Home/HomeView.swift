@@ -1,4 +1,5 @@
 import RDCore
+import RDDesign
 import SwiftUI
 
 enum AppRoute: Hashable {
@@ -11,11 +12,15 @@ enum AppRoute: Hashable {
   case placeholder(AppModule)
 }
 
-/// Ana ekran: projeler, iş takibi ve modül girişleri. Tutar gösterilmez.
+/// Ana sayfa: özet sayılar, aktif projeler, bana atanan işler ve modüller.
+/// Bilerek hiçbir para tutarı, kasa veya banka bakiyesi göstermez.
 struct HomeView: View {
   @Environment(AppModel.self) private var app
   @State private var model: HomeViewModel
   @State private var path = NavigationPath()
+
+  private let projectLimit = 5
+  private let taskLimit = 3
 
   init(context: SessionContext, repositories: Repositories) {
     _model = State(initialValue: HomeViewModel(context: context, repositories: repositories))
@@ -23,36 +28,34 @@ struct HomeView: View {
 
   var body: some View {
     NavigationStack(path: $path) {
-      ScrollView {
-        VStack(alignment: .leading, spacing: 24) {
-          ErrorBanner(message: model.errorMessage)
-          projectsSection
-          tasksSection
-          modulesSection
-          upcomingSection
+      List {
+        Section {
+          summary
+        } header: {
+          greeting
         }
-        .padding(16)
+        .rdRowBackground()
+
+        if let error = model.errorMessage {
+          Section { RDErrorBanner(message: error) }
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets())
+        }
+
+        if model.context.access.canAnywhere(.projeRead) { projectsSection }
+        tasksSection
+        modulesSection
+        upcomingSection
       }
-      .background(Theme.pageBackground)
-      .navigationTitle("Merhaba, \(model.context.profile.displayName.components(separatedBy: " ").first ?? "")")
+      .listStyle(.insetGrouped)
+      .rdScreen()
+      .navigationTitle(RDBrandMark.appName)
       .toolbar {
-        ToolbarItem(placement: .topBarTrailing) {
-          Menu {
-            Text(model.context.profile.email ?? "")
-            Button("Çıkış yap", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
-              Task { await app.session.signOut() }
-            }
-          } label: {
-            Image(systemName: "person.crop.circle")
-          }
-          .accessibilityLabel("Hesap")
-        }
+        ToolbarItem(placement: .topBarTrailing) { accountMenu }
       }
       .refreshable { await reload() }
       .task { await reload() }
-      .navigationDestination(for: AppRoute.self) { route in
-        destination(for: route)
-      }
+      .navigationDestination(for: AppRoute.self) { destination(for: $0) }
     }
   }
 
@@ -76,91 +79,117 @@ struct HomeView: View {
 
   // MARK: Bölümler
 
-  private var projectsSection: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      SectionHeader(title: "Aktif projeler", actionTitle: "Tümü") { path.append(AppRoute.projects) }
-      if model.activeProjects.isEmpty && !model.isLoading {
-        Card { Text("Size atanmış aktif proje yok.").foregroundStyle(.secondary) }
-      }
-      ForEach(model.activeProjects) { project in
-        NavigationLink(value: AppRoute.project(project)) {
-          Card {
-            HStack(alignment: .top) {
-              VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                  Text(project.name).font(.headline)
-                  if project.isDemo { DemoBadge() }
-                }
-                Text([project.code, project.city].compactMap { $0 }.joined(separator: " · "))
-                  .font(.subheadline)
-                  .foregroundStyle(.secondary)
-              }
-              Spacer()
-              StatusBadge(text: project.status.title, color: project.status.color)
-            }
-            let openCount = model.openTaskCount(projectId: project.id)
-            if openCount > 0 {
-              Label("\(openCount) açık iş", systemImage: "checklist").font(.footnote).foregroundStyle(.secondary)
-            }
-          }
-        }
-        .buttonStyle(.plain)
-      }
+  private var greeting: some View {
+    VStack(alignment: .leading, spacing: 2) {
+      Text("Merhaba, \(model.context.profile.displayName.components(separatedBy: " ").first ?? "")")
+        .font(RDFont.sectionTitle)
+        .foregroundStyle(RDColor.textPrimary)
+      Text(Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(Money.locale)))
+        .font(RDFont.secondary)
+        .foregroundStyle(RDColor.textSecondary)
     }
+    .textCase(nil)
+    .padding(.bottom, .rdS)
+    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+  }
+
+  /// Yalnızca adet bilgisi; tutar yok.
+  private var summary: some View {
+    ViewThatFits(in: .horizontal) {
+      HStack(spacing: .rdL) { metrics }
+      VStack(alignment: .leading, spacing: .rdM) { metrics }
+    }
+    .padding(.vertical, .rdXS)
+  }
+
+  @ViewBuilder private var metrics: some View {
+    if model.context.access.canAnywhere(.projeRead) {
+      Metric(value: model.activeProjects.count, title: "Aktif proje")
+    }
+    Metric(value: model.openTasks.count, title: "Açık iş")
+    Metric(value: model.myTasks.count, title: "Bana atanan")
+    let overdue = model.overdueCount()
+    Metric(value: overdue, title: "Geciken", tone: overdue > 0 ? .danger : nil)
+  }
+
+  private var projectsSection: some View {
+    Section {
+      if model.activeProjects.isEmpty && !model.isLoading {
+        Text("Size atanmış aktif proje yok.").foregroundStyle(RDColor.textSecondary)
+      }
+      ForEach(model.activeProjects.prefix(projectLimit)) { project in
+        NavigationLink(value: AppRoute.project(project)) {
+          ProjectRow(project: project, openTaskCount: model.openTaskCount(projectId: project.id))
+        }
+      }
+    } header: {
+      RDSectionHeader(title: "Aktif projeler", actionTitle: "Tümü") { path.append(AppRoute.projects) }
+    }
+    .rdRowBackground()
   }
 
   private var tasksSection: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      SectionHeader(title: "İş takibi", actionTitle: "Tümü") { path.append(AppRoute.tasks(projectId: nil)) }
-      Card {
-        HStack(spacing: 24) {
-          Metric(value: model.openTasks.count, title: "Açık iş")
-          Metric(value: model.myTasks.count, title: "Bana atanan")
-          Metric(value: model.overdueCount(), title: "Geciken", tint: model.overdueCount() > 0 ? .red : .primary)
-        }
-        ForEach(model.myTasks.prefix(3)) { task in
-          Divider()
+    Section {
+      if model.myTasks.isEmpty && !model.isLoading {
+        Text("Size atanmış açık iş yok.").foregroundStyle(RDColor.textSecondary)
+      }
+      ForEach(model.myTasks.prefix(taskLimit)) { task in
+        NavigationLink(value: AppRoute.tasks(projectId: task.projectId)) {
           TaskRow(task: task, projectName: app.projectName(task.projectId))
         }
       }
+    } header: {
+      RDSectionHeader(title: "Bana atanan işler", actionTitle: "Tüm işler") { path.append(AppRoute.tasks(projectId: nil)) }
     }
+    .rdRowBackground()
   }
 
   private var modulesSection: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      SectionHeader(title: "Modüller")
-      LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
-        ForEach(model.availableModules) { module in
-          NavigationLink(value: route(for: module)) {
-            ModuleTile(module: module)
-          }
-          .buttonStyle(.plain)
+    Section {
+      ForEach(model.availableModules) { module in
+        NavigationLink(value: route(for: module)) {
+          RDRow(symbol: module.symbol, symbolTint: RDColor.brandText, title: module.title)
         }
       }
+    } header: {
+      RDSectionHeader(title: "Modüller")
     }
+    .rdRowBackground()
   }
 
   @ViewBuilder
   private var upcomingSection: some View {
     if !model.upcomingModules.isEmpty {
-      VStack(alignment: .leading, spacing: 10) {
-        SectionHeader(title: "Sonraki aşamalarda")
-        Card {
-          ForEach(model.upcomingModules) { module in
-            NavigationLink(value: AppRoute.placeholder(module)) {
-              HStack {
-                Label(module.title, systemImage: module.symbol)
-                Spacer()
-                Text("Hazırlanıyor").font(.caption).foregroundStyle(.secondary)
-              }
-              .foregroundStyle(.secondary)
+      Section {
+        ForEach(model.upcomingModules) { module in
+          NavigationLink(value: AppRoute.placeholder(module)) {
+            RDRow(symbol: module.symbol, title: module.title) {
+              RDStatusBadge(text: "Hazırlanıyor")
             }
-            .buttonStyle(.plain)
-            if module != model.upcomingModules.last { Divider() }
           }
         }
+      } header: {
+        RDSectionHeader(title: "Sonraki aşamalarda")
+      } footer: {
+        Text("Bu modüller henüz kullanıma açık değil; kayıt tutulmaz.")
       }
+      .rdRowBackground()
     }
+  }
+
+  private var accountMenu: some View {
+    Menu {
+      Section(model.context.profile.email ?? "") {
+        Button("Çıkış yap", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
+          Task { await app.session.signOut() }
+        }
+      }
+    } label: {
+      Image(systemName: "person.crop.circle")
+        .font(.title3)
+        .frame(minWidth: Metrics.minTouchTarget, minHeight: Metrics.minTouchTarget)
+    }
+    .accessibilityLabel("Hesap: \(model.context.profile.displayName)")
   }
 
   private func route(for module: AppModule) -> AppRoute {
@@ -174,51 +203,44 @@ struct HomeView: View {
   }
 }
 
-struct SectionHeader: View {
-  let title: String
-  var actionTitle: String?
-  var action: (() -> Void)?
-
-  var body: some View {
-    HStack {
-      Text(title).font(.title3.weight(.semibold))
-      Spacer()
-      if let actionTitle, let action {
-        Button(actionTitle, action: action).font(.subheadline)
-      }
-    }
-  }
-}
-
 private struct Metric: View {
   let value: Int
   let title: String
-  var tint: Color = .primary
+  var tone: StatusTone?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 2) {
-      Text("\(value)").font(.title2.weight(.semibold)).foregroundStyle(tint).monospacedDigit()
-      Text(title).font(.caption).foregroundStyle(.secondary)
+      Text("\(value)")
+        .font(RDFont.metric)
+        .monospacedDigit()
+        .foregroundStyle(tone.map(RDColor.tone) ?? RDColor.textPrimary)
+      Text(title)
+        .font(RDFont.caption)
+        .foregroundStyle(RDColor.textSecondary)
     }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .accessibilityElement(children: .combine)
   }
 }
 
-private struct ModuleTile: View {
-  let module: AppModule
+/// Proje satırı (ana sayfa ve proje listesi). Tutar içermez.
+struct ProjectRow: View {
+  let project: Project
+  var openTaskCount: Int?
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      Image(systemName: module.symbol)
-        .font(.title2)
-        .foregroundStyle(Theme.accent)
-      Text(module.title)
-        .font(.subheadline.weight(.semibold))
-        .multilineTextAlignment(.leading)
-        .lineLimit(2, reservesSpace: true)
+    RDRow(symbol: "building.2", symbolTint: RDColor.brandText, title: project.name, subtitle: subtitle) {
+      if project.isDemo { RDDemoBadge() }
+    } trailing: {
+      RDStatusBadge(text: project.status.title, tone: project.status.tone)
     }
-    .padding(14)
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
+  }
+
+  private var subtitle: String {
+    var parts = [project.code]
+    if let city = project.city { parts.append(city) }
+    if let count = openTaskCount, count > 0 { parts.append("\(count) açık iş") }
+    return parts.joined(separator: " · ")
   }
 }
 
@@ -227,12 +249,12 @@ struct ModulePlaceholderView: View {
   let module: AppModule
 
   var body: some View {
-    ContentUnavailableView {
-      Label(module.title, systemImage: module.symbol)
-    } description: {
-      Text("Bu modül henüz geliştirilmedi. Sonraki aşamalarda eklenecek; şu an bu bölümde kayıt tutulmuyor.")
-    }
-    .navigationTitle(module.title)
-    .navigationBarTitleDisplayMode(.inline)
+    RDStateView(kind: .empty(
+      title: module.title,
+      message: "Bu modül henüz geliştirilmedi. Sonraki aşamalarda eklenecek; şu an bu bölümde kayıt tutulmuyor.",
+      symbol: module.symbol))
+      .background(RDColor.background.ignoresSafeArea())
+      .navigationTitle(module.title)
+      .navigationBarTitleDisplayMode(.inline)
   }
 }

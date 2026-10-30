@@ -1,7 +1,9 @@
 import RDCore
+import RDDesign
 import SwiftUI
 
-/// Cari kart, filtreli ekstre (hareket geçmişi) ve ters kayıtla iptal.
+/// Cari detay: bakiye özeti ve hareket ekleme en üstte, ardından filtreli
+/// ekstre (hareket geçmişi) ve kart bilgileri. İptal ters kayıtla yapılır.
 struct CariDetailView: View {
   let app: AppModel
   @State private var model: CariDetailViewModel
@@ -10,6 +12,7 @@ struct CariDetailView: View {
   @State private var reversing: CariStatementLine?
   @State private var reversalReason = ""
   @State private var reversalId = UUID()
+  @State private var showingFilter = false
   @State private var useFrom = false
   @State private var useTo = false
   @State private var fromDate = CalendarDate.today().adding(days: -30).date()
@@ -24,57 +27,28 @@ struct CariDetailView: View {
     let account = model.account
     List {
       if let error = model.errorMessage {
-        ErrorBanner(message: error).listRowBackground(Color.clear)
+        RDErrorBanner(message: error).listRowBackground(Color.clear).listRowInsets(EdgeInsets())
       }
-      Section {
-        LabeledContent("Kod", value: account.code)
-        LabeledContent("Tür", value: account.type.title)
-        if let tax = account.taxNumber { LabeledContent("VKN/TCKN", value: tax) }
-        if let phone = account.phone { LabeledContent("Telefon", value: phone) }
-        if let iban = account.iban { LabeledContent("IBAN", value: iban).textSelection(.enabled) }
-        if account.isDemo {
-          Label("Demo cari; yalnızca demo projelerle kullanılabilir.", systemImage: "info.circle")
-            .font(.footnote).foregroundStyle(.orange)
-        }
-      }
-
+      header(account)
       if model.canSeeEntries {
-        filterSection
         summarySection
-        Section("Hareketler") {
-          if model.lines.isEmpty {
-            Text("Seçili aralıkta hareket yok.").foregroundStyle(.secondary)
-          }
-          ForEach(model.lines.reversed()) { line in
-            StatementRow(line: line, scopeName: app.projectName(line.projectId) ?? app.costCenterName(line.costCenterId))
-              .swipeActions(edge: .trailing) {
-                if model.canReverse(line) {
-                  Button("İptal et") {
-                    reversalReason = ""
-                    reversalId = UUID()
-                    reversing = line
-                  }
-                  .tint(.red)
-                }
-              }
-          }
-        }
+        filterSection
+        entriesSection
       } else {
         Section {
-          Text("Bu carinin hareketlerini görüntüleme yetkiniz yok.").foregroundStyle(.secondary)
+          Text("Bu carinin hareketlerini görüntüleme yetkiniz yok.").foregroundStyle(RDColor.textSecondary)
         }
+        .rdRowBackground()
       }
+      infoSection(account)
     }
-    .navigationTitle(account.title)
+    .listStyle(.insetGrouped)
+    .rdScreen()
+    .navigationTitle(account.code)
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {
-      ToolbarItemGroup(placement: .topBarTrailing) {
-        if model.canPostEntries && account.isActive {
-          Button("Hareket ekle", systemImage: "plus.circle") { newEntry = true }
-        }
-        if model.canEditAccount {
-          Button("Düzenle") { editing = true }
-        }
+      if model.canEditAccount {
+        Button("Düzenle") { editing = true }
       }
     }
     .sheet(isPresented: $editing) {
@@ -101,22 +75,84 @@ struct CariDetailView: View {
     .task { await model.load() }
   }
 
-  private var filterSection: some View {
-    Section("Filtre") {
-      Picker("Proje", selection: $model.filter.projectId) {
-        Text("Tümü").tag(UUID?.none)
-        ForEach(app.projects) { Text($0.name).tag(Optional($0.id)) }
+  // MARK: Bölümler
+
+  private func header(_ account: CariAccount) -> some View {
+    Section {
+      VStack(alignment: .leading, spacing: .rdS) {
+        HStack(spacing: .rdS) {
+          RDStatusBadge(text: account.type.title, tone: .neutral)
+          if account.isDemo { RDDemoBadge() }
+          if !account.isActive { RDStatusBadge(text: "Pasif", tone: .warning) }
+        }
+        Text(account.title)
+          .font(RDFont.sectionTitle)
+          .foregroundStyle(RDColor.textPrimary)
       }
-      Toggle("Başlangıç tarihi", isOn: $useFrom)
-      if useFrom { DatePicker("Başlangıç", selection: $fromDate, displayedComponents: .date) }
-      Toggle("Bitiş tarihi", isOn: $useTo)
-      if useTo { DatePicker("Bitiş", selection: $toDate, displayedComponents: .date) }
+      .padding(.vertical, .rdXS)
     }
+    .rdRowBackground()
+  }
+
+  private var summarySection: some View {
+    let summary = model.summary
+    return Section {
+      VStack(alignment: .leading, spacing: .rdXS) {
+        Text(model.filter.to == nil ? "Güncel bakiye" : "Dönem sonu bakiye")
+          .font(RDFont.secondary)
+          .foregroundStyle(RDColor.textSecondary)
+        RDAmount(amount: summary.closing, showsSide: true)
+          .font(RDFont.metric)
+        Text(summary.side.title)
+          .font(RDFont.caption)
+          .foregroundStyle(RDColor.textSecondary)
+      }
+      .padding(.vertical, .rdXS)
+      if model.filter.from != nil {
+        RDInfoRow(label: "Devir", value: Money.format(summary.opening))
+      }
+      RDInfoRow(label: "Toplam borç", value: Money.format(summary.periodBorc))
+      RDInfoRow(label: "Toplam alacak", value: Money.format(summary.periodAlacak))
+      if model.canPostEntries && model.account.isActive {
+        Button("Hareket ekle") { newEntry = true }
+          .buttonStyle(.rdPrimary)
+          .listRowInsets(EdgeInsets(top: .rdM, leading: .rdL, bottom: .rdM, trailing: .rdL))
+      }
+    }
+    .rdRowBackground()
+  }
+
+  private var filterSection: some View {
+    Section {
+      DisclosureGroup(isExpanded: $showingFilter) {
+        Picker("Proje", selection: $model.filter.projectId) {
+          Text("Tümü").tag(UUID?.none)
+          ForEach(app.projects) { Text($0.name).tag(Optional($0.id)) }
+        }
+        Toggle("Başlangıç tarihi", isOn: $useFrom)
+        if useFrom { DatePicker("Başlangıç", selection: $fromDate, displayedComponents: .date) }
+        Toggle("Bitiş tarihi", isOn: $useTo)
+        if useTo { DatePicker("Bitiş", selection: $toDate, displayedComponents: .date) }
+      } label: {
+        VStack(alignment: .leading, spacing: 2) {
+          Text("Filtre").font(RDFont.rowTitle).foregroundStyle(RDColor.textPrimary)
+          Text(filterSummary).font(RDFont.caption).foregroundStyle(RDColor.textSecondary)
+        }
+      }
+    }
+    .rdRowBackground()
     .environment(\.locale, Money.locale)
     .onChange(of: [useFrom, useTo]) { _, _ in applyDates() }
     .onChange(of: fromDate) { _, _ in applyDates() }
     .onChange(of: toDate) { _, _ in applyDates() }
     .onChange(of: model.filter.projectId) { _, _ in Task { await model.load() } }
+  }
+
+  private var filterSummary: String {
+    var parts = [app.projectName(model.filter.projectId) ?? "Tüm projeler"]
+    if let from = model.filter.from { parts.append("\(from.display) sonrası") }
+    if let to = model.filter.to { parts.append("\(to.display) öncesi") }
+    return parts.joined(separator: " · ")
   }
 
   private func applyDates() {
@@ -125,20 +161,49 @@ struct CariDetailView: View {
     Task { await model.load() }
   }
 
-  private var summarySection: some View {
-    let summary = model.summary
-    return Section {
-      if model.filter.from != nil {
-        LabeledContent("Devir") { AmountText(amount: summary.opening, colored: true) }
+  private var entriesSection: some View {
+    Section {
+      if model.lines.isEmpty && !model.isLoading {
+        Text("Seçili aralıkta hareket yok.").foregroundStyle(RDColor.textSecondary)
       }
-      LabeledContent("Toplam borç") { AmountText(amount: summary.periodBorc) }
-      LabeledContent("Toplam alacak") { AmountText(amount: summary.periodAlacak) }
-      LabeledContent("Bakiye") { AmountText(amount: summary.closing, colored: true).fontWeight(.semibold) }
+      ForEach(model.lines.reversed()) { line in
+        StatementRow(line: line, scopeName: app.projectName(line.projectId) ?? app.costCenterName(line.costCenterId))
+          .swipeActions(edge: .trailing) {
+            if model.canReverse(line) {
+              Button("İptal et") {
+                reversalReason = ""
+                reversalId = UUID()
+                reversing = line
+              }
+              .tint(RDColor.tone(.danger))
+            }
+          }
+      }
     } header: {
-      Text("Özet")
+      Text("Hareketler (\(model.lines.count))")
     } footer: {
-      Text(summary.side.title)
+      if model.lines.contains(where: model.canReverse) {
+        Text("Hatalı bir hareketi iptal etmek için satırı sola kaydırın.")
+      }
     }
+    .rdRowBackground()
+  }
+
+  private func infoSection(_ account: CariAccount) -> some View {
+    Section("Kart bilgileri") {
+      if let tax = account.taxNumber { RDInfoRow(label: "VKN/TCKN", value: tax, selectable: true) }
+      if let office = account.taxOffice { RDInfoRow(label: "Vergi dairesi", value: office) }
+      if let phone = account.phone { RDInfoRow(label: "Telefon", value: phone, selectable: true) }
+      if let email = account.email { RDInfoRow(label: "E-posta", value: email, selectable: true) }
+      if let iban = account.iban { RDInfoRow(label: "IBAN", value: iban, selectable: true) }
+      if let address = account.address { RDInfoRow(label: "Adres", value: address) }
+      if account.isDemo {
+        Label("Demo cari; yalnızca demo projelerle kullanılabilir.", systemImage: "info.circle")
+          .font(RDFont.caption)
+          .foregroundStyle(RDColor.tone(.warning))
+      }
+    }
+    .rdRowBackground()
   }
 }
 
@@ -147,28 +212,37 @@ private struct StatementRow: View {
   let scopeName: String?
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 4) {
-      HStack {
-        Text(line.kind.title).font(.subheadline.weight(.medium))
-        if line.isReversed { StatusBadge(text: "İptal edildi", color: .red) }
-        Spacer()
-        Text((line.direction == .borc ? "+" : "−") + Money.format(line.amount, currency: line.currency))
+    VStack(alignment: .leading, spacing: .rdXS) {
+      HStack(alignment: .firstTextBaseline) {
+        Text(line.kind.title).font(RDFont.rowTitle).foregroundStyle(RDColor.textPrimary)
+        if line.isReversed { RDStatusBadge(text: "İptal edildi", tone: .danger) }
+        Spacer(minLength: .rdS)
+        Text((line.direction == .borc ? "Borç " : "Alacak ") + Money.format(line.amount, currency: line.currency))
+          .font(RDFont.body.weight(.semibold))
           .monospacedDigit()
-          .foregroundStyle(line.isReversed || line.kind == .tersKayit ? .secondary : .primary)
+          .foregroundStyle(muted ? RDColor.textSecondary : RDColor.textPrimary)
           .strikethrough(line.isReversed)
       }
-      Text(line.description).font(.callout).foregroundStyle(.secondary)
-      HStack(spacing: 6) {
-        Text(line.entryDate.display)
-        if let scopeName { Text("· \(scopeName)") }
-        if let doc = line.documentNo { Text("· \(doc)") }
-        Spacer()
-        Text("Bakiye \(Money.format(line.runningBalanceTry))").monospacedDigit()
+      Text(line.description).font(RDFont.secondary).foregroundStyle(RDColor.textSecondary)
+      ViewThatFits(in: .horizontal) {
+        HStack { meta; Spacer(); running }
+        VStack(alignment: .leading, spacing: 2) { meta; running }
       }
-      .font(.caption)
-      .foregroundStyle(.secondary)
+      .font(RDFont.caption)
+      .foregroundStyle(RDColor.textSecondary)
     }
-    .padding(.vertical, 2)
+    .padding(.vertical, .rdXS)
+    .accessibilityElement(children: .combine)
+  }
+
+  private var muted: Bool { line.isReversed || line.kind == .tersKayit }
+
+  private var meta: some View {
+    Text(([line.entryDate.display, scopeName, line.documentNo].compactMap { $0 }).joined(separator: " · "))
+  }
+
+  private var running: some View {
+    Text("Bakiye \(Money.format(line.runningBalanceTry))").monospacedDigit()
   }
 }
 
@@ -189,11 +263,15 @@ struct CariEntryFormView: View {
           }
           .pickerStyle(.segmented)
           .disabled(model.isDirectionFixed)
-          TextField("Tutar (₺)", text: $model.amountText).keyboardType(.decimalPad)
+          TextField("Tutar (₺)", text: $model.amountText)
+            .keyboardType(.decimalPad)
+            .font(RDFont.metric)
+            .monospacedDigit()
           DatePicker("Tarih", selection: $model.date, in: ...Date(), displayedComponents: .date)
         } footer: {
           Text("Borç: ödeme ve avans gibi karşı tarafı borçlandıran kayıtlar. Alacak: fatura, tahsilat gibi karşı tarafı alacaklandıran kayıtlar.")
         }
+        .rdRowBackground()
         Section("Kapsam") {
           Picker("Bağlı olduğu yer", selection: $model.scopeChoice) {
             Text("Proje").tag(CariEntryFormViewModel.ScopeChoice.project)
@@ -210,14 +288,15 @@ struct CariEntryFormView: View {
             }
           }
         }
+        .rdRowBackground()
         Section {
           TextField("Açıklama", text: $model.descriptionText, axis: .vertical)
           TextField("Belge no (isteğe bağlı)", text: $model.documentNo)
         }
-        if let message = model.errorMessage ?? model.validationMessage {
-          Section { Text(message).foregroundStyle(.red).font(.callout) }
-        }
+        .rdRowBackground()
+        RDFormMessage(message: model.errorMessage ?? model.validationMessage)
       }
+      .rdScreen()
       .environment(\.locale, Money.locale)
       .navigationTitle(model.account.title)
       .navigationBarTitleDisplayMode(.inline)
@@ -232,6 +311,7 @@ struct CariEntryFormView: View {
               }
             }
           }
+          .fontWeight(.semibold)
           .disabled(!model.canSave)
         }
       }
