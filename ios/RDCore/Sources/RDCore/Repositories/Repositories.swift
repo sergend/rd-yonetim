@@ -243,6 +243,29 @@ public protocol FinanceRepository: Sendable {
   func projectCosts(projectId: UUID?) async throws -> [ProjectCostRow]
 }
 
+/// Evrak arşivi. Dosyalar özel Storage bucket'ında durur; yükleme üç adımdır:
+/// yer ayırma (sunucu yolu üretir) → dosyayı o yola yükleme → tamamlama
+/// (sunucu nesnenin boyutunu ve türünü doğrular). Her adım güvenle tekrarlanır.
+public protocol DocumentRepository: Sendable {
+  func documents(filter: DocumentFilter) async throws -> [ArchiveDocument]
+  func document(id: UUID) async throws -> ArchiveDocument
+  func events(documentId: UUID) async throws -> [DocumentEvent]
+
+  /// Aynı kimlik + aynı istek aynı belgeyi (ve yolu) döner; farklı içerikle `.conflict`.
+  func reserveUpload(_ request: DocumentUploadRequest) async throws -> ArchiveDocument
+  /// Dosyayı ayrılan yola yükler. Nesne bu yolda zaten varsa (önceki deneme
+  /// yüklemiş, yanıt kaybolmuşsa) başarılı sayılır; doğrulamayı tamamlama yapar.
+  func uploadFile(path: String, data: Data, mimeType: DocumentMimeType) async throws
+  /// Dosya henüz yoksa `.notFound`; boyut veya tür farklıysa `.validation`.
+  func completeUpload(id: UUID) async throws -> ArchiveDocument
+  func downloadFile(path: String) async throws -> Data
+
+  func archive(id: UUID, reason: String) async throws -> ArchiveDocument
+  /// Bekleyen yüklemeden vazgeçme (gerekçesiz) veya yanlış dosyanın iptali (gerekçe ≥ 10).
+  func cancel(id: UUID, reason: String?) async throws -> ArchiveDocument
+  func relink(id: UUID, to link: DocumentLink, reason: String, expectedVersion: Int) async throws -> ArchiveDocument
+}
+
 /// Uygulamanın kullandığı tüm repository'ler (bağımlılık enjeksiyonu için).
 public struct Repositories: Sendable {
   public let auth: AuthRepository
@@ -255,11 +278,12 @@ public struct Repositories: Sendable {
   public let puantaj: PuantajRepository
   public let contracts: ContractRepository
   public let finance: FinanceRepository
+  public let documents: DocumentRepository
 
   public init(auth: AuthRepository, access: AccessRepository, projects: ProjectRepository,
               costCenters: CostCenterRepository, cari: CariRepository, tasks: TaskRepository,
               workforce: WorkforceRepository, puantaj: PuantajRepository, contracts: ContractRepository,
-              finance: FinanceRepository) {
+              finance: FinanceRepository, documents: DocumentRepository) {
     self.auth = auth
     self.access = access
     self.projects = projects
@@ -270,5 +294,6 @@ public struct Repositories: Sendable {
     self.puantaj = puantaj
     self.contracts = contracts
     self.finance = finance
+    self.documents = documents
   }
 }

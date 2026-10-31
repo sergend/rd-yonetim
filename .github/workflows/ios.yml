@@ -50,8 +50,8 @@ jobs:
         with:
           path: ios/RDCore/.build
           key: rdcore-linux-v2-${{ hashFiles('ios/RDCore/Package.resolved') }}
-      - name: Yerel Supabase (Auth + REST) başlat, deneme verisini yükle
-        run: supabase start -x studio,imgproxy,inbucket,realtime,storage-api,edge-runtime,logflare,vector,supavisor,postgres-meta
+      - name: Yerel Supabase (Auth + REST + Storage) başlat, deneme verisini yükle
+        run: supabase start -x studio,imgproxy,mailpit,realtime,edge-runtime,logflare,vector,supavisor,postgres-meta
       - name: Repository'leri gerçek API'ye karşı test et
         run: |
           eval "$(supabase status -o env | grep -E '^(API_URL|ANON_KEY)=')"
