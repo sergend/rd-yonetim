@@ -1,4 +1,4 @@
-# Mimari özet (Aşama 0, 1 ve 2)
+# Mimari özet (Aşama 0–3)
 
 Tam doküman: [Teknik Mimari Önerisi](https://claude.ai/artifact/6gdNhhjhSuDdodf55R3dn9).
 Bu dosya yalnızca veritabanında şu an uygulanmış olanı özetler.
@@ -86,6 +86,31 @@ göre menüyü sadeleştirir; asıl koruma RLS'tir.
 | `personel_iletisim.read` | ✓ | ✓ | | ✓ | |
 | `gorevlendirme.read` | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `gorevlendirme.write` | ✓ | ✓ | | ✓ | |
+
+## Puantaj (Aşama 3)
+
+- `puantaj_status_definitions`: durumların sayısal (`work_equivalent`) ve ücret
+  (`pay_basis`) anlamı ayrı alanlarda.
+- `puantaj_periods` (proje + ay): Taslak → İncelemede → Onaylandı → Kilitlendi,
+  revizyon ve ilk onay bilgisi.
+- `puantaj_entries` (proje + kişi + gün benzersiz): durum, fazla mesai, not ve
+  kayıt anındaki görevlendirme/üyelik/ekip/taşeron snapshot'ı.
+- `puantaj_period_events`: değiştirilemez geçiş geçmişi; onay olayı snapshot
+  saklar.
+- Yazma yalnızca `save_puantaj` (toplu, sürüm kontrollü) ve
+  `puantaj_transition` RPC'leriyle; okuma RLS ile. `puantaj_roster` ay içindeki
+  görevli listesini, `puantaj_summary` kişi başı sayımları döner.
+- Hiçbir puantaj kaydı cari deftere yazmaz; hakedişe veri sağlama:
+  [puantaj-hakedis.md](puantaj-hakedis.md). Kararlar:
+  [karar 0004](decisions/0004-asama-3-kararlari.md).
+
+| İzin | Yönetici | İdari işler | Muhasebe | Proje müdürü (proje) | Şantiye şefi (proje) | Görüntüleyici (proje) |
+| --- | --- | --- | --- | --- | --- | --- |
+| `puantaj.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `puantaj.write` | ✓ | ✓ | | ✓ | ✓ | |
+| `puantaj.review` | ✓ | ✓ | | ✓ | | |
+| `puantaj.approve` | ✓ | | | ✓ | | |
+| `puantaj.unlock` | ✓ | | | | | |
 
 ## Etkin izin
 

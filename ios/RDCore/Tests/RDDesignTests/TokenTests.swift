@@ -58,6 +58,10 @@ final class TokenTests: XCTestCase {
     for status in ProjectStatus.allCases { _ = status.tone }
     XCTAssertEqual(TaskPriority.yuksek.tone, .danger)
     XCTAssertEqual(BalanceSide.weOwe.tone, .danger)
+    for status in PuantajPeriodStatus.allCases { _ = status.tone }
+    // Puantaj hücresinde renk tek başına anlam taşımaz: her durumun ayrı kısa harfi var.
+    XCTAssertEqual(Set(PuantajStatus.allCases.map(\.shortLabel)).count, PuantajStatus.allCases.count)
+    XCTAssertNotEqual(PuantajStatus.tamGun.tone, PuantajStatus.calismadi.tone)
   }
 
   /// Xcode'un global vurgu rengi (AccentColor) token ile aynı olmalı.

@@ -22,6 +22,11 @@ public enum PermissionKey: String, Sendable, CaseIterable {
   case personelIletisimRead = "personel_iletisim.read"
   case gorevlendirmeRead = "gorevlendirme.read"
   case gorevlendirmeWrite = "gorevlendirme.write"
+  case puantajRead = "puantaj.read"
+  case puantajWrite = "puantaj.write"
+  case puantajReview = "puantaj.review"
+  case puantajApprove = "puantaj.approve"
+  case puantajUnlock = "puantaj.unlock"
 }
 
 /// my_permissions() RPC satırı: project_id boşsa genel izin.

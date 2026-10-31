@@ -33,9 +33,10 @@ enum ErrorMapper {
     switch error.code {
     case "42501": return .forbidden(ours)
     case "23505": return .conflict(ours ?? "Bu kayıt zaten var (kod veya belge tekrarı).")
-    case "23514", "22023", "23502", "22P02": return .validation(ours ?? "Girilen bilgiler kurallara uymuyor.")
+    case "23514", "22023", "23502", "22P02", "22008": return .validation(ours ?? "Girilen bilgiler kurallara uymuyor.")
     case "23503": return .validation(ours ?? "Bağlı kayıt bulunamadı veya pasif.")
     case "23P01": return .conflict(ours ?? "Tarihler başka bir kayıtla çakışıyor.")
+    case "40001": return .conflict(ours ?? "Kayıt siz düzenlerken başka biri tarafından değiştirildi. Yenileyip tekrar deneyin.")
     case "P0002", "PGRST116": return .notFound
     case "PGRST301", "PGRST302": return .notAuthenticated
     default: return .server(ours ?? "Sunucu hatası. Lütfen tekrar deneyin.")

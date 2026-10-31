@@ -118,3 +118,23 @@ dosyasındadır: `PeriodBadge` (Başlayacak / Devam ediyor / Bitti), `RecordBadg
   → seç → Görevlendir; başlangıç bugün, bitiş isteğe bağlı.
 - Formlarda zorunlu alan yalnızca ad; diğer her şey isteğe bağlı. Sayfalar
   `.medium` boyutta açılır, tek elle kullanılabilir.
+
+## Aşama 3 ekranları (puantaj)
+
+Ortak parçalar `RDYonetim/Puantaj/PuantajShared.swift` dosyasındadır:
+`PuantajCellLabel` (durum harfi, fazla mesai noktası, görevsiz gün soluk),
+`PuantajLegend`, `PuantajMonthBar` (‹ ay ›, ay durumu, revizyon) ve `PuantajNotice`.
+
+- **Renk tek başına anlam taşımaz:** her durumun kısa harfi vardır (T, Y, Ç, Üİ,
+  İ, R, RT) ve tonu `StatusTone` üzerinden gelir: tam gün başarı, yarım gün
+  bilgi, çalışmadı tehlike, ücretli izin ve rapor uyarı, ücretsiz izin ve resmî
+  tatil nötr. Henüz işlenmemiş gün "·" ile gösterilir.
+- **Ay tablosu:** ad sütunu sabit; gün başlığı ve gövde aynı gün sütununa
+  bağlı iki yatay kaydırma alanıdır. Hücre boyutları `@ScaledMetric` ile metin
+  boyutuna göre büyür; ad sütunu ekranın yarısını geçmez.
+- **Gün görünümü:** küçük ekranda daha okunaklı alternatif; kişiler ekiplerine
+  göre gruplanır, satır `RDRow` + `RDStatusBadge`.
+- **Hızlı giriş:** hücre sayfasında duruma tek dokunuş kaydeder ve kapatır
+  (dokunsal geri bildirimle). Fazla mesai ve not ayrı açılır bölümdedir.
+- **Toplu işlem:** her zaman önizleme ve onay; korunan kayıtlar ayrı listelenir.
+- **Özet:** yalnızca gün ve saat sayıları; para yok, kategoriler birleştirilmez.

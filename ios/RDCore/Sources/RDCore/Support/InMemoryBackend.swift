@@ -22,6 +22,12 @@ public actor InMemoryBackend {
   public var crewList: [Crew] = []
   public var membershipList: [CrewMembership] = []
   public var assignmentList: [ProjectAssignment] = []
+  // Aşama 3 (bkz. InMemoryPuantaj.swift)
+  public var puantajEntries: [PuantajEntry] = []
+  public var puantajPeriods: [PuantajPeriod] = []
+  public var puantajEvents: [UUID: [PuantajPeriodEvent]] = [:]
+  public var today = CalendarDate.today()
+  public internal(set) var saveCallCount = 0
   /// Sonraki çağrıda fırlatılacak hata (test için).
   public var nextError: RepositoryError?
   public private(set) var postCallCount = 0
@@ -293,7 +299,7 @@ public actor InMemoryBackend {
     Repositories(auth: InMemoryAuth(backend: self), access: InMemoryAccess(backend: self),
                  projects: InMemoryProjects(backend: self), costCenters: InMemoryCostCenters(backend: self),
                  cari: InMemoryCari(backend: self), tasks: InMemoryTasks(backend: self),
-                 workforce: InMemoryWorkforce(backend: self))
+                 workforce: InMemoryWorkforce(backend: self), puantaj: InMemoryPuantaj(backend: self))
   }
 }
 

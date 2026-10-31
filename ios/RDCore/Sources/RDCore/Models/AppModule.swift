@@ -49,7 +49,7 @@ public enum AppModule: String, CaseIterable, Identifiable, Sendable {
 
   public var isAvailable: Bool {
     switch self {
-    case .projeler, .isTakibi, .taseronlar, .personel, .ekipler, .cari, .genelGider: true
+    case .projeler, .isTakibi, .taseronlar, .personel, .ekipler, .puantaj, .cari, .genelGider: true
     default: false
     }
   }
@@ -63,7 +63,8 @@ public enum AppModule: String, CaseIterable, Identifiable, Sendable {
     case .personel, .ekipler: .personelRead
     case .cari, .taseronSozlesmeleri, .hakedis: .cariRead
     case .genelGider, .giderler: .cariHareketRead
-    case .puantaj, .daireler: .projeRead
+    case .puantaj: .puantajRead
+    case .daireler: .projeRead
     case .raporlar: .cariHareketRead
     case .kullanicilar: .kullaniciManage
     }

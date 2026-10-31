@@ -78,6 +78,27 @@ biçimi bilerek böyledir (xcconfig'te `//` yorum başlatır).
 - [ ] `muhasebe@example.test`: personel listesi görünür, personel detayında **İletişim bölümü yok**.
 - [ ] Açık/koyu tema ve en büyük metin boyutunda yeni ekranlar okunaklı; satırlar kesilmiyor.
 
+### Aşama 3: puantaj
+
+Seed verisi Sivas projesinde Ekim 2026 için Pazar hariç dünkü güne kadar
+puantaj içerir (Kalfa 7-8'inde raporlu, Demir Ustası 14'ünde yarım gün, Usta
+10'unda 2 saat fazla mesai, Tekniker 29'unda resmî tatil).
+
+- [ ] `sef@example.test` → Ana ekran → Puantaj → Sivas: ay tablosu açılır; ad sütunu sabit, günler yatay kayar ve **gün başlığı gövdeyle birlikte kayar** (en kritik kontrol).
+- [ ] Tablo açılışta bugünün sütununa yakın konumlanır; bugün çerçeveli, Pazar sütunları gri.
+- [ ] Boş bir hücreye dokunun → durum sayfası; "Tam gün"e dokununca kaydedip kapanır, hücrede "T" görünür.
+- [ ] Gelecek bir güne "Tam gün" yazmayı deneyin: Türkçe hata mesajı. Görevli olmayan (gri) hücre açılmaz.
+- [ ] "Gün" görünümüne geçin: kişiler ekiplerine göre gruplu; alt bilgide "henüz işlenmedi" sayısı.
+- [ ] İşlemler → Toplu işle: bir gün seçip Kalıp Ekibi'ne "Tam gün"; önizlemede eklenecek / korunacak hücreler ayrı listelenir; mevcut kayıtlar "üzerine yaz" açılmadan değişmez.
+- [ ] Toplu işle → "Önceki günü kopyala": önizlemede kaynak gün ve hedef gün, fazla mesai kopyalanmaz.
+- [ ] İşlemler → Aylık özet: Kişi / Ekip / Proje sekmeleri; hiçbir yerde para tutarı yok; ücretli ve ücretsiz izin ayrı satırlarda.
+- [ ] İşlemler → Ay durumu: şef "İncelemeye gönder"i görür, "Onayla"yı görmez. Gönderdikten sonra hücreye dokunmak düzenleme açmaz.
+- [ ] `yonetici@example.test`: Ay durumu → Onayla → Kilitle; tablo kilitli uyarısı gösterir. "Yeniden aç" gerekçe (en az 10 karakter) ister; revizyon 1 olur, geçmişte tüm olaylar görünür.
+- [ ] `muhasebe@example.test`: puantajı görür ama düzenleyemez ve onaylayamaz.
+- [ ] Önceki/sonraki ay okları çalışır; Eylül'de kayıt yoktur ve boş hücreler devamsızlık sayılmaz.
+- [ ] Koyu tema ve en büyük metin boyutunda tablo ve gün görünümü okunaklı; VoiceOver hücreyi "ad, tarih: durum" olarak okur.
+- [ ] Cari ekranlarında puantaj nedeniyle yeni hareket oluşmadığını kontrol edin.
+
 ## 5. Otomatik testler
 
 ```bash
