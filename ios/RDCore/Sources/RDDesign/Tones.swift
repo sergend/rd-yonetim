@@ -109,3 +109,26 @@ public extension WorkQuantityStatus {
     }
   }
 }
+
+public extension FinanceDocStatus {
+  var tone: StatusTone {
+    switch self {
+    case .taslak: .warning
+    case .onaylandi: .success
+    case .iptal: .neutral
+    }
+  }
+}
+
+/// Ödeme durumu: ödenmedi kırmızı değil turuncudur (vadesi geçmiş ayrıca belirtilir).
+public extension FinanceSettlementState {
+  var tone: StatusTone {
+    switch self {
+    case .taslak: .neutral
+    case .iptal: .neutral
+    case .acik: .warning
+    case .kismi: .info
+    case .kapandi: .success
+    }
+  }
+}

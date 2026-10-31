@@ -1,4 +1,4 @@
-# Mimari özet (Aşama 0–4)
+# Mimari özet (Aşama 0–5)
 
 Tam doküman: [Teknik Mimari Önerisi](https://claude.ai/artifact/6gdNhhjhSuDdodf55R3dn9).
 Bu dosya yalnızca veritabanında şu an uygulanmış olanı özetler.
@@ -160,6 +160,40 @@ göre menüyü sadeleştirir; asıl koruma RLS'tir.
 
 Şantiye şefi puantaj ve imalat girer, ancak sözleşme fiyatlarını ve hakediş
 tutarlarını göremez. Şablonlar yönetici tarafından değiştirilebilir.
+
+## Gider, gelir ve borç (Aşama 5)
+
+- `finance_categories` (veri; kodda kategori yok), `finance_documents` (gider ve
+  gelir; proje veya genel masraf merkezi; taslak → onaylı → iptal),
+  `finance_settlements` (kısmi ödeme/tahsilat; `payment_sources` yalnızca bilgi),
+  `finance_document_events` (değiştirilemez geçmiş).
+- Durum: `v_finance_document_status` (ödenmedi / kısmen / tamamen, kalan,
+  vadesi geçmiş). Raporlar: `finance_report`, `project_cost_report`.
+- Cari: yalnızca cari bağlantılı belgeler deftere yazılır (onayda bir kez;
+  her ödeme/tahsilat ayrı hareket + `cari_allocations` eşleştirmesi). İptal ters kayıtla.
+- Yazma yalnızca RPC'lerle (`save_finance_category`, `save_finance_document`,
+  `approve_finance_document`, `record_finance_settlement`,
+  `cancel_finance_settlement`, `cancel_finance_document`, `revise_finance_document`).
+- Hakediş bu tablolara yazılmaz; proje maliyetinde ayrı sütundur.
+- Hesap kuralları: [gider-gelir-hesaplama.md](gider-gelir-hesaplama.md). Kararlar:
+  [karar 0006](decisions/0006-asama-5-kararlari.md).
+
+| İzin | Yönetici | Muhasebe | Proje müdürü (proje) | Şantiye şefi (proje) | Diğer roller |
+| --- | --- | --- | --- | --- | --- |
+| `gider.read` | ✓ | ✓ | ✓ | | |
+| `gider.write` | ✓ | ✓ | ✓ | ✓ | |
+| `gider.approve` | ✓ | | | | |
+| `gider.pay` | ✓ | ✓ | | | |
+| `gelir.read` | ✓ | ✓ | | | |
+| `gelir.write` | ✓ | ✓ | | | |
+| `gelir.approve` | ✓ | | | | |
+| `gelir.collect` | ✓ | ✓ | | | |
+| `finans_rapor.read` | ✓ | ✓ | ✓ | | |
+| `finans_kategori.manage` | ✓ | ✓ | | | |
+
+Şantiye şefi kendi projesinde hızlı gider girer ve yalnızca kendi girdiği
+giderleri görür; başkasının giderini, geliri ve raporları göremez, onaylayamaz,
+ödeme kaydedemez.
 
 ## Etkin izin
 
