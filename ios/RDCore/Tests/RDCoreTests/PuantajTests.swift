@@ -55,6 +55,29 @@ final class PuantajModelTests: XCTestCase {
     XCTAssertEqual(json["work_date"] as? String, "2026-10-01")
   }
 
+  func testQuickStatusChangeKeepsOvertimeOnlyBetweenWorkStatuses() {
+    let person = UUID()
+    let entry = PuantajEntry(projectId: UUID(), personnelId: person, workDate: day(10, 5), status: .tamGun,
+                             overtimeHours: 2, overtimeNote: "beton", note: "B blok", personnelName: "Kalfa")
+    let toHalf = PuantajCellInput.statusChange(personnelId: person, workDate: day(10, 5), from: entry, to: .yarimGun)
+    XCTAssertEqual(toHalf.overtimeHours, 2)
+    XCTAssertEqual(toHalf.overtimeNote, "beton")
+    XCTAssertEqual(toHalf.note, "B blok")
+    XCTAssertEqual(toHalf.expectedVersion, entry.version)
+    for status in PuantajStatus.allCases where !status.allowsOvertime {
+      let input = PuantajCellInput.statusChange(personnelId: person, workDate: day(10, 5), from: entry, to: status)
+      XCTAssertEqual(input.overtimeHours, 0, "\(status)")
+      XCTAssertNil(input.overtimeNote, "\(status)")
+      XCTAssertEqual(input.note, "B blok", "not korunur")
+    }
+    let cleared = PuantajCellInput.statusChange(personnelId: person, workDate: day(10, 5), from: entry, to: nil)
+    XCTAssertNil(cleared.status)
+    XCTAssertEqual(cleared.overtimeHours, 0)
+    XCTAssertNil(cleared.overtimeNote)
+    XCTAssertNil(cleared.note)
+    XCTAssertEqual(cleared.expectedVersion, entry.version)
+  }
+
   func testOvertimeInput() {
     XCTAssertEqual(OvertimeInput.parse("2,5"), Decimal(string: "2.5"))
     XCTAssertEqual(OvertimeInput.parse(""), 0)
@@ -361,6 +384,47 @@ final class PuantajViewModelTests: XCTestCase {
     XCTAssertEqual(vm.grid.summary(for: k2.id).approvedOvertimeHours, 3)
     _ = await vm.setCell(personnelId: k2.id, day: day(10, 9), status: .tamGun, overtimeHours: 4)
     XCTAssertEqual(vm.grid.summary(for: k2.id).approvedOvertimeHours, 0, "saati değişen fazla mesainin onayı düşer")
+  }
+
+  func testQuickStatusChangeFromOvertimeDayToNonWorkStatus() async {
+    let vm = await model()
+    await vm.load()
+    _ = await vm.setCell(personnelId: k2.id, day: day(10, 9), status: .tamGun, overtimeHours: 2,
+                         overtimeNote: "beton", note: "B blok")
+    let half = await vm.setStatus(personnelId: k2.id, day: day(10, 9), status: .yarimGun)
+    XCTAssertTrue(half)
+    XCTAssertEqual(vm.grid.entry(k2.id, day(10, 9))?.overtimeHours, 2, "çalışma durumları arasında mesai korunur")
+    XCTAssertEqual(vm.grid.entry(k2.id, day(10, 9))?.overtimeNote, "beton")
+    for status in PuantajStatus.allCases where !status.allowsOvertime {
+      _ = await vm.setStatus(personnelId: k2.id, day: day(10, 9), status: .tamGun)
+      _ = await vm.setCell(personnelId: k2.id, day: day(10, 9), status: .tamGun, overtimeHours: 2,
+                           overtimeNote: "beton", note: "B blok")
+      let ok = await vm.setStatus(personnelId: k2.id, day: day(10, 9), status: status)
+      XCTAssertTrue(ok, "\(status): \(vm.errorMessage ?? "")")
+      let entry = vm.grid.entry(k2.id, day(10, 9))
+      XCTAssertEqual(entry?.status, status)
+      XCTAssertEqual(entry?.overtimeHours, 0, "\(status)")
+      XCTAssertNil(entry?.overtimeNote, "\(status)")
+      XCTAssertEqual(entry?.note, "B blok")
+    }
+    let cleared = await vm.setStatus(personnelId: k2.id, day: day(10, 9), status: nil)
+    XCTAssertTrue(cleared)
+    XCTAssertNil(vm.grid.entry(k2.id, day(10, 9)))
+    XCTAssertEqual(vm.grid.summary(for: k2.id).overtimeHours, 0, "temizlenen hücrede artık mesai kalmaz")
+  }
+
+  func testOvertimeApprovalIsRejectedInApprovedMonth() async {
+    let vm = await model()
+    await vm.load()
+    _ = await vm.setCell(personnelId: k2.id, day: day(10, 9), status: .tamGun, overtimeHours: 3)
+    let pending = vm.pendingOvertime
+    XCTAssertEqual(pending.count, 1)
+    let approved = await vm.perform(.onayla)
+    XCTAssertTrue(approved)
+    XCTAssertEqual(vm.status, .onaylandi)
+    await vm.approveOvertime(pending)
+    XCTAssertNotNil(vm.errorMessage)
+    XCTAssertEqual(vm.grid.summary(for: k2.id).approvedOvertimeHours, 0)
   }
 
   func testOtherProjectAndMissingPermission() async {

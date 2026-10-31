@@ -152,13 +152,11 @@ struct PuantajCellSheet: View {
     showsDetails = entry.hasOvertime || entry.note != nil
   }
 
-  /// Hızlı seçim: mevcut fazla mesai ve not korunur (çalışılmayan güne geçilirse
-  /// fazla mesai düşer).
+  /// Hızlı seçim: çalışma durumları arasında fazla mesai ve not korunur;
+  /// fazla mesai desteklemeyen duruma geçilirse mesai düşer, not kalır.
   private func save(_ status: PuantajStatus?) {
     Task {
-      let ok = await model.setCell(personnelId: selection.personnelId, day: selection.day, status: status,
-                                   overtimeHours: entry?.overtimeHours ?? 0, overtimeNote: entry?.overtimeNote,
-                                   note: entry?.note)
+      let ok = await model.setStatus(personnelId: selection.personnelId, day: selection.day, status: status)
       if ok {
         saved += 1
         dismiss()

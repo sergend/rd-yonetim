@@ -406,6 +406,19 @@ public final class PuantajViewModel {
     return await save([input], announce: false)
   }
 
+  /// Hızlı durum seçimi: kurallar `PuantajCellInput.statusChange` içindedir
+  /// (fazla mesai desteklemeyen duruma geçişte mesai düşer).
+  public func setStatus(personnelId: UUID, day: CalendarDate, status: PuantajStatus?) async -> Bool {
+    let existing = grid.entry(personnelId, day)
+    if existing == nil && status == nil { return true }
+    let input = PuantajCellInput.statusChange(personnelId: personnelId, workDate: day, from: existing, to: status)
+    if let problem = cellProblem(personnelId: personnelId, day: day, status: status, overtimeHours: input.overtimeHours) {
+      errorMessage = problem
+      return false
+    }
+    return await save([input], announce: false)
+  }
+
   /// Sunucuya gitmeden yakalanabilen hatalar (sunucu aynı kuralları uygular).
   public func cellProblem(personnelId: UUID, day: CalendarDate, status: PuantajStatus?, overtimeHours: Decimal) -> String? {
     if let reason = editBlockedReason { return reason }

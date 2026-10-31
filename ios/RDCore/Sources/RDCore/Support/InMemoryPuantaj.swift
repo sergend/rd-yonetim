@@ -230,11 +230,23 @@ extension InMemoryBackend {
 
   func approvePuantajOvertime(entryIds: [UUID]) throws -> Int {
     try failIfNeeded()
-    var count = 0
-    for index in puantajEntries.indices where entryIds.contains(puantajEntries[index].id) {
-      guard access.can(.puantajApprove, in: puantajEntries[index].projectId) else {
+    let targets = puantajEntries.filter { entryIds.contains($0.id) }
+    for entry in targets {
+      guard access.can(.puantajApprove, in: entry.projectId) else {
         throw RepositoryError.forbidden("Fazla mesai onaylama yetkiniz yok")
       }
+    }
+    // Sunucudaki gibi: onaylanmış veya kilitli aydaki fazla mesai onaylanamaz
+    // (hiçbir kayıt değişmeden reddedilir).
+    for entry in targets {
+      let month = PuantajMonth(containing: entry.workDate)
+      if let period = puantajPeriods.first(where: { $0.projectId == entry.projectId && $0.month == month.firstDay }),
+         period.status == .onaylandi || period.status == .kilitli {
+        throw RepositoryError.validation("\(month.title) puantajı \(period.status.title.lowercased(with: Money.locale)); fazla mesai onayı için ayın yeniden açılması gerekir")
+      }
+    }
+    var count = 0
+    for index in puantajEntries.indices where entryIds.contains(puantajEntries[index].id) {
       if puantajEntries[index].hasOvertime && !puantajEntries[index].isOvertimeApproved {
         puantajEntries[index].overtimeApprovedAt = Date()
         puantajEntries[index].version += 1

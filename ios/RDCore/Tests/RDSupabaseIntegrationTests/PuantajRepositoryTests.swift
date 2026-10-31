@@ -106,6 +106,46 @@ final class PuantajRepositoryTests: XCTestCase {
     ], overwrite: false)
   }
 
+  func testQuickStatusChangeDropsOvertimeForNonWorkStatus() async throws {
+    let repos = try await signedIn("sef@example.test")
+    let sivas = try await sivas(repos)
+    if try await repos.puantaj.period(projectId: sivas.id, month: month)?.status ?? .taslak != .taslak {
+      try await reopen(month, in: sivas)
+    }
+    let roster = try await repos.puantaj.roster(projectId: sivas.id, month: month)
+    let kalfa = try person("Deneme Kalıp Kalfası", in: roster)
+    let day = CalendarDate(year: 2026, month: month.month, day: 20)
+    func current() async throws -> PuantajEntry? {
+      try await repos.puantaj.entries(projectId: sivas.id, month: month).first { $0.personnelId == kalfa && $0.workDate == day }
+    }
+    _ = try await repos.puantaj.save(projectId: sivas.id, items: [
+      PuantajCellInput(personnelId: kalfa, workDate: day, status: .tamGun, overtimeHours: 2, overtimeNote: "beton",
+                       note: "B blok"),
+    ], overwrite: true)
+
+    _ = try await repos.puantaj.save(projectId: sivas.id, items: [
+      PuantajCellInput.statusChange(personnelId: kalfa, workDate: day, from: try await current(), to: .yarimGun),
+    ], overwrite: false)
+    let half = try await current()
+    XCTAssertEqual(half?.overtimeHours, 2, "çalışma durumları arasında mesai korunur")
+
+    for status in PuantajStatus.allCases where !status.allowsOvertime {
+      _ = try await repos.puantaj.save(projectId: sivas.id, items: [
+        PuantajCellInput(personnelId: kalfa, workDate: day, status: .tamGun, overtimeHours: 2, overtimeNote: "beton",
+                         note: "B blok"),
+      ], overwrite: true)
+      let result = try await repos.puantaj.save(projectId: sivas.id, items: [
+        PuantajCellInput.statusChange(personnelId: kalfa, workDate: day, from: try await current(), to: status),
+      ], overwrite: false)
+      XCTAssertEqual(result.first?.result, .guncellendi, "\(status)")
+      let entry = try await current()
+      XCTAssertEqual(entry?.status, status)
+      XCTAssertEqual(entry?.overtimeHours, 0, "\(status)")
+      XCTAssertNil(entry?.overtimeNote, "\(status)")
+      XCTAssertEqual(entry?.note, "B blok")
+    }
+  }
+
   func testNotAssignedAndFutureWorkAreRejectedInTurkish() async throws {
     let repos = try await signedIn("sef@example.test")
     let sivas = try await sivas(repos)
@@ -142,6 +182,8 @@ final class PuantajRepositoryTests: XCTestCase {
     let teknik = try person("Deneme Şantiye Teknikeri", in: roster)
     _ = try await chief.puantaj.save(projectId: sivas.id, items: [
       PuantajCellInput(personnelId: teknik, workDate: CalendarDate(year: 2026, month: 3, day: 2), status: .tamGun),
+      PuantajCellInput(personnelId: teknik, workDate: CalendarDate(year: 2026, month: 3, day: 3), status: .tamGun,
+                       overtimeHours: 2),
     ], overwrite: false)
 
     do {
@@ -179,6 +221,16 @@ final class PuantajRepositoryTests: XCTestCase {
     } catch let error as RepositoryError {
       guard case .validation(let message) = error else { return XCTFail("beklenen validation, gelen \(error)") }
       XCTAssertTrue(message.contains("yeniden açılması gerekir"), message)
+    }
+    let overtime = try await admin.puantaj.entries(projectId: sivas.id, month: flowMonth)
+      .filter { $0.personnelId == teknik && $0.hasOvertime && !$0.isOvertimeApproved }
+    XCTAssertFalse(overtime.isEmpty)
+    do {
+      _ = try await admin.puantaj.approveOvertime(entryIds: overtime.map(\.id))
+      XCTFail("onaylı ayda fazla mesai onaylanmamalı")
+    } catch let error as RepositoryError {
+      guard case .validation(let message) = error else { return XCTFail("beklenen validation, gelen \(error)") }
+      XCTAssertTrue(message.contains("fazla mesai onayı için"), message)
     }
     let reopened = try await admin.puantaj.transition(projectId: sivas.id, month: flowMonth, action: .yenidenAc,
                                                       reason: "Entegrasyon testi düzeltmesi", expectedVersion: nil)

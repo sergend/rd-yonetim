@@ -425,6 +425,23 @@ public struct PuantajCellInput: Hashable, Encodable, Sendable {
     self.expectedVersion = expectedVersion
   }
 
+  /// Hücrede yalnızca durum değiştirildiğinde (hızlı seçim) gönderilecek kayıt.
+  /// Çalışma durumları arasında geçişte fazla mesai, açıklaması ve not korunur;
+  /// fazla mesai desteklemeyen duruma geçişte saat 0, açıklama boş olur, not
+  /// korunur. Hücre temizlenirken (`status == nil`) hiçbir alan taşınmaz.
+  public static func statusChange(personnelId: UUID, workDate: CalendarDate, from entry: PuantajEntry?,
+                                  to status: PuantajStatus?) -> PuantajCellInput {
+    guard let status else {
+      return PuantajCellInput(personnelId: personnelId, workDate: workDate, status: nil,
+                              expectedVersion: entry?.version)
+    }
+    let keepsOvertime = status.allowsOvertime
+    return PuantajCellInput(personnelId: personnelId, workDate: workDate, status: status,
+                            overtimeHours: keepsOvertime ? entry?.overtimeHours ?? 0 : 0,
+                            overtimeNote: keepsOvertime ? entry?.overtimeNote : nil,
+                            note: entry?.note, expectedVersion: entry?.version)
+  }
+
   enum CodingKeys: String, CodingKey {
     case status, note
     case personnelId = "personnel_id", workDate = "work_date", overtimeHours = "overtime_hours"

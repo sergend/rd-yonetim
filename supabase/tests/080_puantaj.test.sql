@@ -3,7 +3,7 @@
 -- değişiklik, onay/kilit/yeniden açma ve audit, yetki ve proje izolasyonu,
 -- demo ayrımı ve finansal yan etki olmaması.
 begin;
-select plan(88);
+select plan(94);
 
 -- ---------------------------------------------------------------- hazırlık
 create temp table ctx (k text primary key, v uuid) on commit drop;
@@ -292,6 +292,10 @@ select lives_ok(
   format($$ select * from public.save_puantaj(%L, %L) $$, pg_temp.c('pA'),
          jsonb_build_array(pg_temp.item('k2', '2026-03-03', 'tam_gun'))),
   'inceleme yetkisi olan proje müdürü incelemedeki ayı düzeltir');
+select lives_ok(
+  format($$ select * from public.save_puantaj(%L, %L) $$, pg_temp.c('pA'),
+         jsonb_build_array(pg_temp.item('k1', '2026-03-06', 'tam_gun', 2))),
+  'onay öncesi Mart ayına onaysız fazla mesai girilir');
 select throws_ok(format($$ select public.puantaj_transition(%L, '2026-03-01', 'onayla', null, 1) $$, pg_temp.c('pA')),
   '40001', null, 'eski sürümle gelen ay işlemi reddedilir');
 select is((public.puantaj_transition(pg_temp.c('pA'), '2026-03-01', 'onayla')).status::text, 'onaylandi',
@@ -310,12 +314,28 @@ select throws_ok(
   format($$ select * from public.save_puantaj(%L, %L, true) $$, pg_temp.c('pA'),
          jsonb_build_array(pg_temp.item('k2', '2026-03-02', 'calismadi'))),
   '23514', null, 'onaylı aya yönetici dahil kimse yazamaz');
+select throws_ok(
+  format($$ select public.approve_puantaj_overtime(array(select id from public.puantaj_entries
+             where project_id = %L and work_date = '2026-03-06' and personnel_id = %L)) $$, pg_temp.c('pA'), pg_temp.c('k1')),
+  '23514', null, 'onaylanmış ayda fazla mesai onaylanamaz');
+select throws_ok(
+  format($$ select public.approve_puantaj_overtime(array(select id from public.puantaj_entries
+             where project_id = %L and overtime_hours > 0 and overtime_approved_at is null)) $$, pg_temp.c('pA')),
+  '23514', null, 'Mart (onaylı) ve Nisan (taslak) içeren toplu fazla mesai onayı bütünüyle reddedilir');
+select is(
+  (select overtime_approved_at from public.puantaj_entries
+    where project_id = pg_temp.c('pA') and personnel_id = pg_temp.c('k2') and work_date = '2026-04-09'),
+  null, 'reddedilen toplu onayda taslak aydaki kayıt da değişmez');
 select tests.authenticate_as(pg_temp.c('sef'));
 select throws_ok(format($$ select public.puantaj_transition(%L, '2026-03-01', 'kilitle') $$, pg_temp.c('pA')),
   '42501', null, 'şantiye şefi ayı kilitleyemez');
 select tests.authenticate_as(pg_temp.c('mudur'));
 select is((public.puantaj_transition(pg_temp.c('pA'), '2026-03-01', 'kilitle')).status::text, 'kilitli',
   'proje müdürü onaylı ayı kilitler');
+select throws_ok(
+  format($$ select public.approve_puantaj_overtime(array(select id from public.puantaj_entries
+             where project_id = %L and work_date = '2026-03-06' and personnel_id = %L)) $$, pg_temp.c('pA'), pg_temp.c('k1')),
+  '23514', null, 'kilitli ayda fazla mesai onaylanamaz');
 select throws_ok(
   format($$ select public.puantaj_transition(%L, '2026-03-01', 'yeniden_ac', 'Kalfanın raporu eksik girilmiş') $$, pg_temp.c('pA')),
   '42501', null, 'kilitli ayı yalnızca kilit açma yetkisi olan açar');
@@ -343,6 +363,10 @@ select lives_ok(
   format($$ select * from public.save_puantaj(%L, %L) $$, pg_temp.c('pA'),
          jsonb_build_array(pg_temp.item('k2', '2026-03-04', 'raporlu'))),
   'yeniden açılan aya şantiye şefi düzeltme girer');
+select tests.authenticate_as(pg_temp.c('mudur'));
+select is(public.approve_puantaj_overtime(array(select id from public.puantaj_entries
+            where project_id = pg_temp.c('pA') and work_date = '2026-03-06' and personnel_id = pg_temp.c('k1'))), 1,
+  'yeniden açılan ayda fazla mesai onaylanır');
 
 select tests.clear_authentication();
 select throws_ok(
