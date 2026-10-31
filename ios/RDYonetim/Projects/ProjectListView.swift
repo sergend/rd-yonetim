@@ -141,8 +141,22 @@ struct ProjectDetailView: View {
         .rdRowBackground()
       }
 
-      if model.canSeeCari || app.access.can(.sozlesmeRead, in: project.id) {
+      if model.canSeeCari || app.access.can(.sozlesmeRead, in: project.id)
+        || app.access.can(.giderRead, in: project.id) || app.access.can(.giderWrite, in: project.id)
+        || app.access.can(.gelirRead, in: project.id) {
         Section("Finans") {
+          if app.access.can(.giderRead, in: project.id) || app.access.can(.giderWrite, in: project.id) {
+            NavigationLink(value: AppRoute.financeList(.gider, projectId: project.id)) {
+              RDRow(symbol: AppModule.giderler.symbol, symbolTint: RDColor.brandText,
+                    title: "Proje giderleri", subtitle: "Gider girişi, onay ve ödeme durumu")
+            }
+          }
+          if app.access.can(.gelirRead, in: project.id) {
+            NavigationLink(value: AppRoute.financeList(.gelir, projectId: project.id)) {
+              RDRow(symbol: AppModule.gelirler.symbol, symbolTint: RDColor.brandText,
+                    title: "Proje gelirleri", subtitle: "Tahakkuk ve tahsilat")
+            }
+          }
           if app.access.can(.sozlesmeRead, in: project.id) {
             NavigationLink(value: AppRoute.contracts(projectId: project.id)) {
               RDRow(symbol: AppModule.taseronSozlesmeleri.symbol, symbolTint: RDColor.brandText,

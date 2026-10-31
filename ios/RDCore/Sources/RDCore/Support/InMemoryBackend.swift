@@ -46,6 +46,12 @@ public actor InMemoryBackend {
   public var postedEntryIds: [UUID: [UUID]] = [:]
   /// Finans hareketinin kuru (ödeme, teminat iadesi, hakediş); TRY'de 1.
   public var exchangeRates: [UUID: Decimal] = [:]
+  // Aşama 5 (bkz. InMemoryFinance.swift)
+  public var financeCategoryList: [FinanceCategory] = []
+  public var financeDocumentList: [FinanceDocument] = []
+  public var financeSettlementList: [FinanceSettlement] = []
+  public var financeDocumentEvents: [FinanceDocumentEvent] = []
+  public var financeDocumentSequence = 0
   public var today = CalendarDate.today()
   public internal(set) var saveCallCount = 0
   /// Sonraki çağrıda fırlatılacak hata (test için).
@@ -67,6 +73,7 @@ public actor InMemoryBackend {
   public func set(nextError: RepositoryError?) { self.nextError = nextError }
   public func set(grants: [PermissionGrant]) { self.grants = grants }
   public func set(session: AuthSession?) { self.session = session }
+  public func set(profile: UserProfile) { self.profile = profile }
   public func set(profileActive: Bool) {
     profile = UserProfile(id: profile.id, email: profile.email, fullName: profile.fullName, isActive: profileActive)
   }
@@ -320,7 +327,7 @@ public actor InMemoryBackend {
                  projects: InMemoryProjects(backend: self), costCenters: InMemoryCostCenters(backend: self),
                  cari: InMemoryCari(backend: self), tasks: InMemoryTasks(backend: self),
                  workforce: InMemoryWorkforce(backend: self), puantaj: InMemoryPuantaj(backend: self),
-                 contracts: InMemoryContracts(backend: self))
+                 contracts: InMemoryContracts(backend: self), finance: InMemoryFinance(backend: self))
   }
 }
 

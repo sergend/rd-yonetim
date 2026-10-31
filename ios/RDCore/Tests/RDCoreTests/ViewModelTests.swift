@@ -79,7 +79,9 @@ final class HomeViewModelTests: XCTestCase {
     XCTAssertTrue(vm.availableModules.contains(.cari))
     XCTAssertTrue(vm.availableModules.contains(.puantaj))
     XCTAssertTrue(vm.availableModules.contains(.hakedis))
-    XCTAssertTrue(vm.upcomingModules.contains(.giderler))
+    XCTAssertTrue(vm.availableModules.contains(.giderler))
+    XCTAssertTrue(vm.availableModules.contains(.raporlar))
+    XCTAssertTrue(vm.upcomingModules.contains(.daireler))
     XCTAssertFalse(vm.upcomingModules.contains { $0.isAvailable })
   }
 

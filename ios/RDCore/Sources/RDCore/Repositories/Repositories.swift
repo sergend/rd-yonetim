@@ -208,6 +208,41 @@ public extension ContractRepository {
   }
 }
 
+/// Şirket gider ve gelir belgeleri, onay, ödeme/tahsilat ve raporlar.
+/// Yazmalar yalnızca RPC'lerle yapılır. Kimlikler istemcide üretilir:
+/// aynı kimlikle tekrar gönderim ikinci belge veya ödeme açmaz.
+/// Onaylı belge değişmez: düzeltme iptal + yeni belgeyle yapılır.
+public protocol FinanceRepository: Sendable {
+  /// includeInactive false ise yalnızca etkin kategoriler.
+  func categories(kind: FinanceDocKind?, includeInactive: Bool) async throws -> [FinanceCategory]
+  func saveCategory(_ category: FinanceCategory) async throws -> FinanceCategory
+
+  func documents(filter: FinanceDocumentFilter) async throws -> [FinanceDocument]
+  func document(id: UUID) async throws -> FinanceDocument
+  func documents(ids: [UUID]) async throws -> [FinanceDocument]
+  func statuses(documentIds: [UUID]) async throws -> [FinanceDocumentStatus]
+  /// Onaylı ve kalanı olan belgeler (bekleyen borç / alacak), vadeye göre.
+  func openStatuses(kind: FinanceDocKind) async throws -> [FinanceDocumentStatus]
+  /// expectedVersion nil: yeni belge (tekrar gönderim aynı belgeyi döner).
+  /// Dolu: taslak güncellemesi (sürüm eşleşmeli).
+  func saveDocument(id: UUID, draft: FinanceDocumentDraft, expectedVersion: Int?) async throws -> FinanceDocument
+  /// Onay yükümlülüğü/alacağı doğurur; cari bağlantılıysa deftere bir kez yazar.
+  /// Peşin bildirilmiş belgede `settlementId` ile tam tutarlı ödeme açılır.
+  func approve(id: UUID, expectedVersion: Int?, settlementId: UUID?) async throws -> FinanceDocument
+  func cancel(id: UUID, reason: String) async throws -> FinanceDocument
+  /// Onaylı belgeyi iptal eder ve yerine düzeltme taslağı açar.
+  func revise(id: UUID, newId: UUID, reason: String) async throws -> FinanceDocument
+  func events(documentId: UUID) async throws -> [FinanceDocumentEvent]
+
+  func settlements(documentId: UUID) async throws -> [FinanceSettlement]
+  func recordSettlement(_ draft: FinanceSettlementDraft) async throws -> FinanceSettlement
+  func cancelSettlement(id: UUID, reason: String) async throws -> FinanceSettlement
+
+  func report(kind: FinanceDocKind, group: FinanceReportGroup, from: CalendarDate?, to: CalendarDate?,
+              projectId: UUID?, costCenterId: UUID?) async throws -> [FinanceReportRow]
+  func projectCosts(projectId: UUID?) async throws -> [ProjectCostRow]
+}
+
 /// Uygulamanın kullandığı tüm repository'ler (bağımlılık enjeksiyonu için).
 public struct Repositories: Sendable {
   public let auth: AuthRepository
@@ -219,10 +254,12 @@ public struct Repositories: Sendable {
   public let workforce: WorkforceRepository
   public let puantaj: PuantajRepository
   public let contracts: ContractRepository
+  public let finance: FinanceRepository
 
   public init(auth: AuthRepository, access: AccessRepository, projects: ProjectRepository,
               costCenters: CostCenterRepository, cari: CariRepository, tasks: TaskRepository,
-              workforce: WorkforceRepository, puantaj: PuantajRepository, contracts: ContractRepository) {
+              workforce: WorkforceRepository, puantaj: PuantajRepository, contracts: ContractRepository,
+              finance: FinanceRepository) {
     self.auth = auth
     self.access = access
     self.projects = projects
@@ -232,5 +269,6 @@ public struct Repositories: Sendable {
     self.workforce = workforce
     self.puantaj = puantaj
     self.contracts = contracts
+    self.finance = finance
   }
 }

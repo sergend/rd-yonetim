@@ -4,7 +4,7 @@ import Foundation
 /// gösterilir ve veri girişi sunmaz.
 public enum AppModule: String, CaseIterable, Identifiable, Sendable {
   case projeler, isTakibi, taseronlar, personel, ekipler, cari, genelGider
-  case puantaj, imalat, taseronSozlesmeleri, hakedis, giderler, daireler, raporlar, kullanicilar
+  case puantaj, imalat, taseronSozlesmeleri, hakedis, giderler, borclar, gelirler, raporlar, daireler, kullanicilar
 
   public var id: String { rawValue }
 
@@ -16,14 +16,16 @@ public enum AppModule: String, CaseIterable, Identifiable, Sendable {
     case .personel: "Personel"
     case .ekipler: "Ekipler"
     case .cari: "Cari hesaplar"
-    case .genelGider: "Şirket genel giderleri"
+    case .genelGider: "Masraf merkezleri (cari)"
     case .puantaj: "Puantaj"
     case .imalat: "İmalat (metraj)"
     case .taseronSozlesmeleri: "Taşeron sözleşmeleri"
     case .hakedis: "Hakediş"
-    case .giderler: "Proje giderleri"
+    case .giderler: "Giderler"
+    case .borclar: "Bekleyen borçlar"
+    case .gelirler: "Gelir ve tahsilat"
     case .daireler: "Daireler ve satış"
-    case .raporlar: "Raporlar"
+    case .raporlar: "Gider ve gelir raporları"
     case .kullanicilar: "Kullanıcılar ve yetkiler"
     }
   }
@@ -43,6 +45,8 @@ public enum AppModule: String, CaseIterable, Identifiable, Sendable {
     case .taseronSozlesmeleri: "doc.text"
     case .hakedis: "doc.badge.gearshape"
     case .giderler: "cart"
+    case .borclar: "calendar.badge.exclamationmark"
+    case .gelirler: "arrow.down.circle"
     case .daireler: "house"
     case .raporlar: "chart.bar.doc.horizontal"
     case .kullanicilar: "person.badge.key"
@@ -52,7 +56,7 @@ public enum AppModule: String, CaseIterable, Identifiable, Sendable {
   public var isAvailable: Bool {
     switch self {
     case .projeler, .isTakibi, .taseronlar, .personel, .ekipler, .puantaj, .cari, .genelGider,
-         .imalat, .taseronSozlesmeleri, .hakedis: true
+         .imalat, .taseronSozlesmeleri, .hakedis, .giderler, .borclar, .gelirler, .raporlar: true
     default: false
     }
   }
@@ -68,10 +72,13 @@ public enum AppModule: String, CaseIterable, Identifiable, Sendable {
     case .taseronSozlesmeleri: .sozlesmeRead
     case .hakedis: .hakedisRead
     case .imalat: .imalatRead
-    case .genelGider, .giderler: .cariHareketRead
+    case .genelGider: .cariHareketRead
+    case .giderler: .giderWrite
+    case .borclar: .giderRead
+    case .gelirler: .gelirRead
     case .puantaj: .puantajRead
     case .daireler: .projeRead
-    case .raporlar: .cariHareketRead
+    case .raporlar: .finansRaporRead
     case .kullanicilar: .kullaniciManage
     }
   }
@@ -79,6 +86,9 @@ public enum AppModule: String, CaseIterable, Identifiable, Sendable {
   public func isVisible(for access: AccessControl) -> Bool {
     switch self {
     case .genelGider, .kullanicilar: access.can(requiredPermission)  // proje dışı: genel izin gerekir
+    // Gider girişi: yazma (şantiye hızlı giriş) veya okuma izni yeter.
+    case .giderler: access.canAnywhere(.giderWrite) || access.canAnywhere(.giderRead)
+    case .gelirler: access.canAnywhere(.gelirRead) || access.canAnywhere(.gelirWrite)
     default: access.canAnywhere(requiredPermission)
     }
   }
