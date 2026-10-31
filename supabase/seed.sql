@@ -5,7 +5,7 @@
 -- Yerel giriş (şifre: yerel-test-1234):
 --   yonetici@example.test  · tüm yetkiler
 --   muhasebe@example.test  · cari ve finans
---   sef@example.test       · Sivas projesinde şantiye şefi (finans görmez)
+--   sef@example.test       · Sivas projesinde şantiye şefi (finans görmez, puantaj girer)
 -- =============================================================================
 
 do $$
@@ -174,5 +174,21 @@ begin
          as x (project, crew, person, start_date, description)
     left join public.crews c on c.name = x.crew
     left join public.personnel p on p.full_name = x.person;
+
+  -- Puantaj (Aşama 3): Sivas projesinde Ekim 2026'nın ilk iş günleri taslak.
+  -- Pazar günleri boş bırakılır (girilmeyen gün devamsızlık sayılmaz).
+  insert into public.puantaj_entries (project_id, personnel_id, work_date, status, overtime_hours, overtime_note)
+  select v_sivas, p.id, d::date,
+         case when p.full_name = 'Deneme Kalıp Kalfası' and extract(day from d) in (7, 8) then 'raporlu'
+              when p.full_name = 'Deneme Demir Ustası' and extract(day from d) = 14 then 'yarim_gun'
+              when p.full_name = 'Deneme Şantiye Teknikeri' and extract(day from d) = 29 then 'resmi_tatil'
+              else 'tam_gun' end::public.puantaj_status,
+         case when p.full_name = 'Deneme Kalıp Ustası' and extract(day from d) = 10 then 2 else 0 end,
+         case when p.full_name = 'Deneme Kalıp Ustası' and extract(day from d) = 10 then 'Döşeme betonu (demo)' end
+    from generate_series('2026-10-01'::date, least(private.today() - 1, '2026-10-30'::date), interval '1 day') d
+   cross join public.personnel p
+   where p.is_demo
+     and p.full_name in ('Deneme Şantiye Teknikeri', 'Deneme Kalıp Ustası', 'Deneme Kalıp Kalfası', 'Deneme Demir Ustası')
+     and extract(isodow from d) <> 7;
 end;
 $$;

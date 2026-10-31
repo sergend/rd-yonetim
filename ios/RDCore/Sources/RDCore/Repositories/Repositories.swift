@@ -119,6 +119,26 @@ public protocol WorkforceRepository: Sendable {
   func workforce(projectId: UUID, on day: CalendarDate) async throws -> [WorkforceEntry]
 }
 
+/// Puantaj (günlük çalışma kayıtları). Aylık veri tek seferde alınır; yazma
+/// yalnızca `save` (toplu, tek işlem) ve ay durum işlemleriyle yapılır.
+/// Hiçbir çağrı finansal kayıt oluşturmaz.
+public protocol PuantajRepository: Sendable {
+  /// Ay içinde projede görevli kişiler ve görev aralıkları.
+  func roster(projectId: UUID, month: PuantajMonth) async throws -> [PuantajRosterLink]
+  func entries(projectId: UUID, month: PuantajMonth) async throws -> [PuantajEntry]
+  /// Ay için henüz kayıt yoksa nil (taslak).
+  func period(projectId: UUID, month: PuantajMonth) async throws -> PuantajPeriod?
+  func events(periodId: UUID) async throws -> [PuantajPeriodEvent]
+  /// Tek işlem: bir öğe reddedilirse hiçbiri kaydedilmez. overwrite false ise
+  /// sürümü bilinmeyen var olan kayıtlar atlanır.
+  func save(projectId: UUID, items: [PuantajCellInput], overwrite: Bool) async throws -> [PuantajSaveOutcome]
+  func transition(projectId: UUID, month: PuantajMonth, action: PuantajAction, reason: String?,
+                  expectedVersion: Int?) async throws -> PuantajPeriod
+  func approveOvertime(entryIds: [UUID]) async throws -> Int
+  /// Sunucunun hesapladığı kişi bazında özet (Swift hesabıyla aynı kurallar).
+  func summary(projectId: UUID, month: PuantajMonth) async throws -> [PuantajServerSummary]
+}
+
 /// Uygulamanın kullandığı tüm repository'ler (bağımlılık enjeksiyonu için).
 public struct Repositories: Sendable {
   public let auth: AuthRepository
@@ -128,10 +148,11 @@ public struct Repositories: Sendable {
   public let cari: CariRepository
   public let tasks: TaskRepository
   public let workforce: WorkforceRepository
+  public let puantaj: PuantajRepository
 
   public init(auth: AuthRepository, access: AccessRepository, projects: ProjectRepository,
               costCenters: CostCenterRepository, cari: CariRepository, tasks: TaskRepository,
-              workforce: WorkforceRepository) {
+              workforce: WorkforceRepository, puantaj: PuantajRepository) {
     self.auth = auth
     self.access = access
     self.projects = projects
@@ -139,5 +160,6 @@ public struct Repositories: Sendable {
     self.cari = cari
     self.tasks = tasks
     self.workforce = workforce
+    self.puantaj = puantaj
   }
 }
