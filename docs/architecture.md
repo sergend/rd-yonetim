@@ -134,6 +134,10 @@ göre menüyü sadeleştirir; asıl koruma RLS'tir.
   `hakedis_transition`, `revise_hakedis`, `post_hakedis`, `release_teminat`,
   `record_finance_payment` ve iptalleri). Özet: `contract_finance_summary`,
   `v_hakedis_payment_status`.
+- Normal ödeme her zaman tek bir yükümlülüğe (deftere işlenmiş hakediş veya
+  teminat iadesi) bağlıdır; hedefsiz ödeme yalnızca sınırlı avanstır. TRY dışı
+  sözleşmede deftere işleme, teminat iadesi ve ödeme açık kur ister
+  (migration `20261102000000_hakedis_odeme_duzeltmeleri.sql`).
 - Hesap kuralları: [hakedis-hesaplama.md](hakedis-hesaplama.md). Kararlar:
   [karar 0005](decisions/0005-asama-4-kararlari.md).
 

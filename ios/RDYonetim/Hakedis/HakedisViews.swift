@@ -67,7 +67,7 @@ struct HakedisDetailView: View {
   private let app: AppModel
 
   enum Sheet: Identifiable {
-    case progress(HakedisLine), deduction(HakedisAdjustmentKind), override, returnBack, cancel, revise, pay
+    case progress(HakedisLine), deduction(HakedisAdjustmentKind), override, returnBack, cancel, revise, pay, postWithRate
     case cancelPayment(FinancePayment)
 
     var id: String {
@@ -79,6 +79,7 @@ struct HakedisDetailView: View {
       case .cancel: "c"
       case .revise: "v"
       case .pay: "pay"
+      case .postWithRate: "post"
       case .cancelPayment(let p): "cp-\(p.id)"
       }
     }
@@ -188,7 +189,9 @@ struct HakedisDetailView: View {
           Button { sheet = .returnBack } label: { Label("Düzeltmeye iade et", systemImage: "arrow.uturn.backward") }
         }
         if model.canPost {
-          Button { confirmPost = true } label: { Label("Cari deftere işle", systemImage: "book.closed") }
+          Button {
+            if model.needsExchangeRate { sheet = .postWithRate } else { confirmPost = true }
+          } label: { Label("Cari deftere işle", systemImage: "book.closed") }
         }
         if model.canPay && !model.paymentSources.isEmpty {
           Button { sheet = .pay } label: { Label("Ödeme kaydet", systemImage: "creditcard") }
@@ -373,8 +376,15 @@ struct HakedisDetailView: View {
                   actionTitle: "Devam", destructive: true) { await model.revise(reason: $0) }
     case .pay:
       PaymentSheet(title: "Hakediş ödemesi", remaining: model.breakdown.remaining, currency: model.hakedis.currency,
-                   sources: model.paymentSources) { amount, source, date, note in
-        await model.recordPayment(amount: amount, sourceId: source, date: date, description: note)
+                   sources: model.paymentSources) { amount, source, date, note, rate in
+        await model.recordPayment(amount: amount, sourceId: source, date: date, description: note, exchangeRate: rate)
+      }
+    case .postWithRate:
+      ValueSheet(title: "Cari deftere işle", label: "Kur (1 \(model.hakedis.currency) = ? ₺)",
+                 message: "Bu işlemin tarihindeki kuru girin; kur tahmin edilmez. Brüt + KDV alacak, kesintiler borç olarak bu kurla TL'ye çevrilir. Bu işlem ödeme değildir.",
+                 initial: "") { text in
+        guard let rate = HakedisMath.parseExchangeRate(text) else { return false }
+        return await model.post(exchangeRate: rate)
       }
     case .cancelPayment(let payment):
       ReasonSheet(title: "Ödemeyi iptal et", message: "Ödeme ters kayıtla geri alınır.", actionTitle: "İptal et",

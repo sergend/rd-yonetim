@@ -634,7 +634,7 @@ extension InMemoryBackend {
     for entryId in postedEntryIds[hakedisId] ?? [] { reverse(entryId: entryId, reason: reason) }
   }
 
-  func postHakedis(id: UUID, entryDate: CalendarDate?) throws -> Hakedis {
+  func postHakedis(id: UUID, entryDate: CalendarDate?, exchangeRate: Decimal? = nil) throws -> Hakedis {
     try failIfNeeded()
     let index = try hakedisIndex(id)
     var h = hakedisRecords[index]
@@ -642,8 +642,10 @@ extension InMemoryBackend {
     if h.isPosted { return h }  // tekrar gönderim
     guard h.status == .onaylandi else { throw RepositoryError.validation("Yalnızca onaylı hakediş deftere işlenir.") }
     let contract = try contractList[contractIndex(h.contractId)]
+    let rate = try HakedisMath.exchangeRate(currency: contract.currency, rate: exchangeRate)
     let date = entryDate ?? today
     let mainId = UUID()
+    exchangeRates[mainId] = rate
     appendEntry(mainId, contract, kind: .hakedis, direction: .alacak, amount: h.grossAmount + h.kdvAmount, date: date,
                 description: "\(h.title) · \(contract.title)")
     var ids = [mainId]
@@ -678,13 +680,16 @@ extension InMemoryBackend {
     return teminatReleaseList.filter { $0.contractId == contractId }.sorted { $0.releaseDate > $1.releaseDate }
   }
 
-  func releaseTeminat(id: UUID, contractId: UUID, amount: Decimal, reason: String, date: CalendarDate?) throws -> TeminatRelease {
+  func releaseTeminat(id: UUID, contractId: UUID, amount: Decimal, reason: String, date: CalendarDate?,
+                      exchangeRate: Decimal? = nil) throws -> TeminatRelease {
     try failIfNeeded()
     let contract = try contractList[contractIndex(contractId)]
     try require(.teminatRelease, contract.projectId, "Teminat serbest bırakma yetkiniz yok")
+    let rate = try HakedisMath.exchangeRate(currency: contract.currency, rate: exchangeRate)
     if let existing = teminatReleaseList.first(where: { $0.id == id }) {
-      guard existing.amount == amount, existing.contractId == contractId else {
-        throw RepositoryError.conflict("Bu kimlikle farklı bir serbest bırakma var.")
+      guard existing.amount == amount, existing.contractId == contractId,
+            existing.releaseDate == (date ?? existing.releaseDate), exchangeRates[id] == rate else {
+        throw RepositoryError.conflict("Bu kimlikle farklı bir serbest bırakma var (tutar, tarih veya kur farklı).")
       }
       return existing
     }
@@ -698,6 +703,7 @@ extension InMemoryBackend {
     }
     let release = TeminatRelease(id: id, contractId: contractId, amount: amount, releaseDate: date ?? today, reason: reason)
     teminatReleaseList.append(release)
+    exchangeRates[id] = rate
     appendEntry(id, contract, kind: .teminatIadesi, direction: .alacak, amount: amount, date: release.releaseDate,
                 description: "Teminat iadesi · \(contract.title)")
     event("teminat", id, "serbest_birak", to: "aktif", reason: reason)
@@ -742,9 +748,13 @@ extension InMemoryBackend {
     case .teminatRelease(let id): releaseId = id
     case .advance: break
     }
+    let rate = try HakedisMath.exchangeRate(currency: contract.currency, rate: draft.exchangeRate)
     if let existing = financePaymentList.first(where: { $0.id == draft.id }) {
-      guard existing.amount == draft.amount, existing.hakedisId == hakedisId, existing.teminatReleaseId == releaseId else {
-        throw RepositoryError.conflict("Bu kimlikle farklı bir ödeme var.")
+      guard existing.contractId == draft.contractId, existing.kind == draft.kind, existing.amount == draft.amount,
+            existing.hakedisId == hakedisId, existing.teminatReleaseId == releaseId,
+            existing.paymentSourceId == draft.paymentSourceId, existing.paymentDate == draft.paymentDate,
+            exchangeRates[draft.id] == rate else {
+        throw RepositoryError.conflict("Bu kimlikle farklı bir ödeme var (tutar, hedef, ödeme kaynağı, tarih veya kur farklı).")
       }
       return existing
     }
@@ -773,10 +783,21 @@ extension InMemoryBackend {
         throw RepositoryError.validation("Ödeme teminat iadesinin kalanını aşıyor.")
       }
     }
+    if draft.kind == .avans {
+      guard contract.status == .aktif else { throw RepositoryError.validation("Avans yalnızca aktif sözleşmeye verilir.") }
+      if let limit = approvedVersion(contractId: contract.id)?.totalAmount {
+        let given = financePaymentList.filter { $0.contractId == contract.id && $0.kind == .avans && $0.status == .aktif }
+          .reduce(Decimal.zero) { $0 + $1.amount }
+        guard given + draft.amount <= limit else {
+          throw RepositoryError.validation("Toplam avans sözleşme bedelini (\(Money.format(limit, currency: contract.currency))) aşamaz.")
+        }
+      }
+    }
     let payment = FinancePayment(id: draft.id, contractId: contract.id, kind: draft.kind, amount: draft.amount,
                                  paymentDate: draft.paymentDate, paymentSourceId: draft.paymentSourceId,
                                  hakedisId: hakedisId, teminatReleaseId: releaseId, description: draft.description)
     financePaymentList.append(payment)
+    exchangeRates[draft.id] = rate
     appendEntry(draft.id, contract, kind: draft.kind == .avans ? .avans : .odeme, direction: .borc, amount: draft.amount,
                 date: draft.paymentDate, description: draft.description ?? "\(draft.kind.title) · \(contract.title)")
     event("odeme", draft.id, "kaydet", to: "aktif")
@@ -881,14 +902,15 @@ struct InMemoryContracts: ContractRepository {
   func revise(hakedisId: UUID, newId: UUID, reason: String) async throws -> Hakedis {
     try await backend.reviseHakedis(id: hakedisId, newId: newId, reason: reason)
   }
-  func post(hakedisId: UUID, entryDate: CalendarDate?) async throws -> Hakedis {
-    try await backend.postHakedis(id: hakedisId, entryDate: entryDate)
+  func post(hakedisId: UUID, entryDate: CalendarDate?, exchangeRate: Decimal?) async throws -> Hakedis {
+    try await backend.postHakedis(id: hakedisId, entryDate: entryDate, exchangeRate: exchangeRate)
   }
 
   func teminatReleases(contractId: UUID) async throws -> [TeminatRelease] { try await backend.listReleases(contractId: contractId) }
   func releaseTeminat(id: UUID, contractId: UUID, amount: Decimal, reason: String,
-                      date: CalendarDate?) async throws -> TeminatRelease {
-    try await backend.releaseTeminat(id: id, contractId: contractId, amount: amount, reason: reason, date: date)
+                      date: CalendarDate?, exchangeRate: Decimal?) async throws -> TeminatRelease {
+    try await backend.releaseTeminat(id: id, contractId: contractId, amount: amount, reason: reason, date: date,
+                                     exchangeRate: exchangeRate)
   }
   func cancelTeminatRelease(id: UUID, reason: String) async throws -> TeminatRelease {
     try await backend.cancelRelease(id: id, reason: reason)

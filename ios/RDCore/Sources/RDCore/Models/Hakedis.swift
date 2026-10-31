@@ -861,9 +861,11 @@ public struct FinancePaymentDraft: Equatable, Sendable {
   public var paymentSourceId: UUID
   public var paymentDate: CalendarDate
   public var description: String?
+  /// TRY dışı sözleşmede zorunlu (1 birim = ? TL); TRY'de boş bırakılır (1).
+  public var exchangeRate: Decimal?
 
   public init(id: UUID = UUID(), contractId: UUID, target: Target, amount: Decimal, paymentSourceId: UUID,
-              paymentDate: CalendarDate, description: String? = nil) {
+              paymentDate: CalendarDate, description: String? = nil, exchangeRate: Decimal? = nil) {
     self.id = id
     self.contractId = contractId
     self.target = target
@@ -871,6 +873,7 @@ public struct FinancePaymentDraft: Equatable, Sendable {
     self.paymentSourceId = paymentSourceId
     self.paymentDate = paymentDate
     self.description = description
+    self.exchangeRate = exchangeRate
   }
 
   public var kind: FinancePaymentKind { target == .advance ? .avans : .odeme }
@@ -1078,6 +1081,29 @@ public enum HakedisMath {
   /// Ondalık basamak sayısı (girdi denetimi için).
   public static func scale(_ value: Decimal) -> Int {
     max(0, -value.exponent)
+  }
+
+  /// Kur kuralı (sunucudaki `private.resolve_exchange_rate` ile aynı). TRY'de
+  /// kur yalnızca 1 olabilir; diğer para birimlerinde kur zorunludur, > 0 ve
+  /// en çok 6 ondalıklıdır. Kur tahmin edilmez.
+  public static func exchangeRate(currency: String, rate: Decimal?) throws -> Decimal {
+    if currency == "TRY" {
+      if let rate, rate != 1 { throw RepositoryError.validation("TL işlemde kur 1 olmalı.") }
+      return 1
+    }
+    guard let rate, rate > 0 else {
+      throw RepositoryError.validation("\(currency) para birimli işlemde kur zorunludur ve sıfırdan büyük olmalı.")
+    }
+    guard scale(rate) <= 6 else { throw RepositoryError.validation("Kur en çok 6 ondalıklı olmalı.") }
+    return rate
+  }
+
+  /// Kur girişi: virgül veya nokta ondalık ayırıcıdır; binlik ayırıcı kabul edilmez.
+  public static func parseExchangeRate(_ raw: String) -> Decimal? {
+    let text = raw.filter { !$0.isWhitespace }.replacingOccurrences(of: ",", with: ".")
+    guard !text.isEmpty, text.filter({ $0 == "." }).count <= 1, text.allSatisfy({ $0.isNumber || $0 == "." }),
+          let value = Decimal(string: text, locale: Locale(identifier: "en_US_POSIX")), value > 0 else { return nil }
+    return value
   }
 }
 

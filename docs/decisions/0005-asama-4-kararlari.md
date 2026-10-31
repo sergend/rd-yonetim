@@ -2,6 +2,7 @@
 
 Hesap kurallarının ayrıntısı ve örnekler: [hakedis-hesaplama.md](../hakedis-hesaplama.md).
 Migration: `supabase/migrations/20261101000000_sozlesme_hakedis.sql` (eski migration'lar değişmedi).
+İnceleme düzeltmeleri (madde 27–29): `supabase/migrations/20261102000000_hakedis_odeme_duzeltmeleri.sql`.
 
 | # | Karar | Gerekçe |
 | --- | --- | --- |
@@ -31,3 +32,6 @@ Migration: `supabase/migrations/20261101000000_sozlesme_hakedis.sql` (eski migra
 | 24 | Onay, deftere işleme, teminat iadesi, ödeme ve hakediş hazırlama sözleşme satırını `FOR UPDATE` kilitler (her yerde önce sözleşme, sonra hakediş). Eşzamanlı ikinci işlem birincinin bitmesini bekler ve kontrollerini onun sonucuyla yapar | Eşzamanlı onay, mahsup veya iade çift yükümlülük üretemez (`091_hakedis_concurrency.test.sql`, iki oturum). |
 | 25 | Tutarlar `numeric`; miktar 3, birim fiyat 4, tutar 2 ondalık. Yuvarlama her satırda ayrı, 2 ondalığa yarım yukarı (`round`). Swift tarafında `Decimal` ve aynı kural (`HakedisMath`); `Double` kullanılmaz | Kuruş farkı oluşmaz; istemci ve sunucu aynı sonucu verir. |
 | 26 | DEMO ayrımı: sözleşme, imalat, hakediş, teminat ve ödeme projenin demo bayrağını alır; demo taşeron gerçek projeye, gerçek taşeron demo projeye bağlanamaz | Deneme verisi gerçek finansa karışmaz. |
+| 27 | Normal ödeme (`odeme`) her zaman **tam olarak bir** yükümlülüğe bağlanır: deftere işlenmiş hakediş veya etkin teminat iadesi (fonksiyon kontrolü + `finance_payments_odeme_target_ck`). Hedefin kalanını aşan ödeme açık hatayla reddedilir. Hedefsiz ödeme yalnızca açıkça `avans` olarak kaydedilir: yalnızca aktif sözleşmeye, sözleşme bedeli biliniyorsa etkin avans toplamı bedeli aşamaz; avans gerçekleşen ödeme sayılmaz, hakedişte mahsup edilir | Hedefsiz ödeme özetteki kalanı eksiye düşürebiliyordu; ödeme yükümlülük olmadan para çıkışı gibi görünmemeli. |
+| 28 | Döviz: TRY dışı sözleşmede deftere işleme, teminat iadesi ve ödeme için kur **zorunludur** (> 0, en çok 6 ondalık) ve istemciden açıkça gelir; varsayılan yoktur, kod kur tahmin etmez veya sabitlemez. TRY'de kur yalnızca 1. Her cari hareket kendi tarihindeki kurla yazılır (`amount_try = round(tutar × kur, 2)`), kur `finance_events` geçmişinde de saklanır. Sözleşme özetleri sözleşme para birimindedir; kur farkı hesaplanmaz | Önceden teminat iadesi ve ödeme kur 1 ile yazılıyordu; USD/EUR işlemde TL karşılığı yanlış oluyordu. |
+| 29 | Ödeme tekrar gönderimi yalnızca aynı **kullanıcı niyetiyle** aynı kaydı döner: sözleşme, tür, tutar, hedef, ödeme kaynağı, ödeme tarihi (gönderilmişse) ve kur aynı olmalı; biri farklıysa 23505 uyuşmazlık. Teminat iadesinde tutar, tarih ve kur karşılaştırılır | "Şirket ödemesi" ile "kart" gibi farklı kaynakla gelen istek sessizce eski kayda bağlanmamalı. |

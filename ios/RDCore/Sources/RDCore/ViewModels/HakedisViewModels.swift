@@ -475,11 +475,16 @@ public final class ContractDetailViewModel {
   }
 
   @discardableResult
-  public func releaseTeminat(id: UUID = UUID(), amount: Decimal, reason: String, date: CalendarDate) async -> Bool {
+  public func releaseTeminat(id: UUID = UUID(), amount: Decimal, reason: String, date: CalendarDate,
+                             exchangeRate: Decimal? = nil) async -> Bool {
     await perform("Teminat serbest bırakıldı. Nakit ödemesi ayrıca kaydedilir.") {
-      _ = try await repository.releaseTeminat(id: id, contractId: contract.id, amount: amount, reason: reason, date: date)
+      _ = try await repository.releaseTeminat(id: id, contractId: contract.id, amount: amount, reason: reason, date: date,
+                                              exchangeRate: exchangeRate)
     }
   }
+
+  /// TRY dışı sözleşmede her finansal işlem kur ister.
+  public var needsExchangeRate: Bool { contract.currency != "TRY" }
 
   @discardableResult
   public func cancelRelease(_ release: TeminatRelease, reason: String) async -> Bool {
@@ -662,19 +667,22 @@ public final class HakedisDetailViewModel {
   }
 
   @discardableResult
-  public func post(entryDate: CalendarDate? = nil) async -> Bool {
+  public func post(entryDate: CalendarDate? = nil, exchangeRate: Decimal? = nil) async -> Bool {
     await perform("Cari deftere işlendi. Ödemeye uygun tutar henüz ödenmiş değildir.") {
-      try await repository.post(hakedisId: hakedis.id, entryDate: entryDate)
+      try await repository.post(hakedisId: hakedis.id, entryDate: entryDate, exchangeRate: exchangeRate)
     }
   }
 
+  /// TRY dışı hakediş deftere işleme ve ödemede kur ister.
+  public var needsExchangeRate: Bool { hakedis.currency != "TRY" }
+
   @discardableResult
   public func recordPayment(id: UUID = UUID(), amount: Decimal, sourceId: UUID, date: CalendarDate,
-                            description: String?) async -> Bool {
+                            description: String?, exchangeRate: Decimal? = nil) async -> Bool {
     await perform("Ödeme kaydedildi.") {
       _ = try await repository.recordPayment(FinancePaymentDraft(
         id: id, contractId: hakedis.contractId, target: .hakedis(hakedis.id), amount: amount,
-        paymentSourceId: sourceId, paymentDate: date, description: description?.nilIfBlank))
+        paymentSourceId: sourceId, paymentDate: date, description: description?.nilIfBlank, exchangeRate: exchangeRate))
       return nil
     }
   }

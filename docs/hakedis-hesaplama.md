@@ -138,6 +138,34 @@ hakedişi değişmez; Ekim hakedişine +0,5 adam-gün (1.000 ₺) fark satırı 
 
 Tekrar çağrı aynı sonucu döner. İptalde bu hareketler ters kayıtla kapatılır.
 
+## Ödeme, avans ve kur
+
+`record_finance_payment` (izin `odeme.write`):
+
+| Tür | Hedef | Sınır |
+| --- | --- | --- |
+| `odeme` | Tam olarak bir: deftere işlenmiş hakediş **veya** etkin teminat iadesi | Hedefin kalanı (hakediş: ödemeye uygun − ödenen; iade: iade − ödenen) |
+| `avans` | Yok | Yalnızca aktif sözleşme; sözleşme bedeli biliniyorsa etkin avans toplamı ≤ bedel |
+
+Hedefsiz `odeme` reddedilir (23514); avans gerçekleşen ödeme sayılmaz.
+
+Kur:
+
+- TRY sözleşme: kur gönderilmez (veya 1); başka değer reddedilir.
+- TRY dışı sözleşme: deftere işleme, teminat iadesi ve her ödeme için kur
+  zorunludur (> 0, en çok 6 ondalık). Varsayılan yoktur; kur tahmin edilmez.
+- Cari hareket: `amount_try = round(tutar × kur, 2)`. Her hareket kendi
+  tarihindeki kurla yazılır; sözleşme özeti sözleşme para birimindedir, kur
+  farkı hesaplanmaz.
+
+Örnek (USD, test verisi): hakediş 4.000 USD, teminat 400 USD, kur 41,5 →
+alacak 166.000 TL, kesinti borcu 16.600 TL. 20 Ekim'de 1.000 USD kur 42 →
+42.000 TL; 25 Ekim'de 1.000 USD kur 43 → 43.000 TL. Teminatın 200 USD'si kur
+44 ile bırakılır → 8.800 TL alacak. Özet: 3.600 + 200 − 2.000 = 1.800 USD kalan.
+
+Tekrar gönderim: aynı kimlik ancak aynı sözleşme, tür, tutar, hedef, ödeme
+kaynağı, ödeme tarihi ve kurla gelirse aynı kayıt döner; biri farklıysa 23505.
+
 ## Sözleşme özeti
 
 `contract_finance_summary(sözleşme)`:

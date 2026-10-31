@@ -157,4 +157,79 @@ final class ContractRepositoryTests: XCTestCase {
     XCTAssertEqual(summary.paidTotal, Decimal(string: "50.25"))
     XCTAssertEqual(summary.remainingTotal, Decimal(string: "37.25"))
   }
+
+  func testForeignCurrencyUsesExplicitRateAndPaymentIdempotencyChecksSourceAndDate() async throws {
+    let repos = try await signedIn("yonetici@example.test")
+    let projects = try await repos.projects.list(includeCompleted: true)
+    let sivas = try XCTUnwrap(projects.first { $0.code == "DEMO-SVS" })
+    let subs = try await repos.workforce.subcontractors()
+    let sub = try XCTUnwrap(subs.first { $0.name == "Örnek Kaba İnşaat Taşeronu" })
+    let sources = try await repos.contracts.paymentSources()
+    let sirket = try XCTUnwrap(sources.first { $0.kind == .sirket })
+    let kart = try XCTUnwrap(sources.first { $0.kind == .kart })
+
+    let contractId = UUID()
+    let itemKey = UUID()
+    let number = "TEST-USD-\(contractId.uuidString.prefix(8))"
+    let draft = ContractDraft(
+      projectId: sivas.id, subcontractorId: sub.id, contractNo: number, title: "Döviz entegrasyon testi (demo)",
+      items: [ContractItemDraft(itemKey: itemKey, method: .birimFiyat, description: "Montaj", unit: .adet,
+                                quantity: 10, unitPrice: 1_000)],
+      currency: "USD", retentionRate: 10)
+    var contract = try await repos.contracts.saveContract(id: contractId, draft: draft, expectedVersion: nil)
+    contract = try await repos.contracts.transition(contractId: contractId, action: .onayla, reason: nil,
+                                                    expectedVersion: contract.version)
+    let today = CalendarDate.today()
+    let quantity = WorkQuantity(contractId: contractId, projectId: sivas.id, itemKey: itemKey, workDate: today, quantity: 4)
+    _ = try await repos.contracts.saveWorkQuantity(quantity)
+    _ = try await repos.contracts.approveWorkQuantities(ids: [quantity.id])
+    let hakedisId = UUID()
+    var hakedis = try await repos.contracts.createHakedis(id: hakedisId, contractId: contractId,
+                                                          periodStart: today.adding(days: -30), periodEnd: today, note: nil)
+    hakedis = try await repos.contracts.transition(hakedisId: hakedisId, action: .gonder, reason: nil, expectedVersion: nil)
+    hakedis = try await repos.contracts.transition(hakedisId: hakedisId, action: .onayla, reason: nil,
+                                                   expectedVersion: hakedis.version)
+    XCTAssertEqual(hakedis.payableAmount, 3_600)
+
+    do {
+      _ = try await repos.contracts.post(hakedisId: hakedisId, entryDate: today)
+      XCTFail("USD hakediş kursuz deftere işlenmemeli")
+    } catch let error as RepositoryError {
+      guard case .validation = error else { return XCTFail("beklenmeyen hata: \(error)") }
+    }
+    hakedis = try await repos.contracts.post(hakedisId: hakedisId, entryDate: today, exchangeRate: Decimal(string: "41.5"))
+    XCTAssertTrue(hakedis.isPosted)
+
+    let paymentDraft = FinancePaymentDraft(contractId: contractId, target: .hakedis(hakedisId), amount: 1_000,
+                                           paymentSourceId: sirket.id, paymentDate: today, exchangeRate: 42)
+    _ = try await repos.contracts.recordPayment(paymentDraft)
+    _ = try await repos.contracts.recordPayment(paymentDraft)  // aynı niyet
+    var otherSource = paymentDraft
+    otherSource.paymentSourceId = kart.id
+    var otherDate = paymentDraft
+    otherDate.paymentDate = today.adding(days: -1)
+    var otherRate = paymentDraft
+    otherRate.exchangeRate = 43
+    for changed in [otherSource, otherDate, otherRate] {
+      do {
+        _ = try await repos.contracts.recordPayment(changed)
+        XCTFail("aynı ödeme kimliği farklı kaynak, tarih veya kurla kabul edilmemeli")
+      } catch let error as RepositoryError {
+        guard case .conflict = error else { return XCTFail("beklenmeyen hata: \(error)") }
+      }
+    }
+    let payments = try await repos.contracts.payments(contractId: contractId)
+    XCTAssertEqual(payments.count, 1)
+    XCTAssertEqual(payments.first?.paymentSourceId, sirket.id)
+
+    let lines = try await repos.cari.statement(accountId: try XCTUnwrap(sub.cariAccountId), filter: CariFilter())
+      .filter { $0.documentNo?.hasPrefix(number) == true }
+    XCTAssertEqual(lines.first { $0.kind == .hakedis }?.alacakTry, 166_000, "4.000 USD × 41,5")
+    XCTAssertEqual(lines.first { $0.kind == .kesinti }?.borcTry, 16_600, "400 USD × 41,5")
+    XCTAssertEqual(lines.first { $0.kind == .odeme }?.borcTry, 42_000, "1.000 USD × 42")
+
+    let summary = try await repos.contracts.financeSummary(contractId: contractId)
+    XCTAssertEqual(summary.paidTotal, 1_000, "özet sözleşme para biriminde")
+    XCTAssertEqual(summary.remainingTotal, 2_600)
+  }
 }

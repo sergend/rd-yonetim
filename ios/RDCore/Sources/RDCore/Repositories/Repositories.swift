@@ -179,12 +179,13 @@ public protocol ContractRepository: Sendable {
   /// Onaylı hakedişi iptal eder ve yerine düzeltme taslağı açar.
   func revise(hakedisId: UUID, newId: UUID, reason: String) async throws -> Hakedis
   /// Onaylı hakedişi cari deftere işler (tekrar çağrı ikinci kayıt açmaz).
-  func post(hakedisId: UUID, entryDate: CalendarDate?) async throws -> Hakedis
+  /// TRY dışı sözleşmede `exchangeRate` zorunludur; TRY'de nil (1).
+  func post(hakedisId: UUID, entryDate: CalendarDate?, exchangeRate: Decimal?) async throws -> Hakedis
 
   // Teminat ve ödeme
   func teminatReleases(contractId: UUID) async throws -> [TeminatRelease]
   func releaseTeminat(id: UUID, contractId: UUID, amount: Decimal, reason: String,
-                      date: CalendarDate?) async throws -> TeminatRelease
+                      date: CalendarDate?, exchangeRate: Decimal?) async throws -> TeminatRelease
   func cancelTeminatRelease(id: UUID, reason: String) async throws -> TeminatRelease
   func payments(contractId: UUID) async throws -> [FinancePayment]
   func recordPayment(_ draft: FinancePaymentDraft) async throws -> FinancePayment
@@ -192,6 +193,19 @@ public protocol ContractRepository: Sendable {
   func financeSummary(contractId: UUID) async throws -> ContractFinanceSummary
   func paymentStatus(hakedisIds: [UUID]) async throws -> [HakedisPaymentStatus]
   func events(contractId: UUID) async throws -> [FinanceEvent]
+}
+
+public extension ContractRepository {
+  /// TL sözleşmeler için kısayol (kur 1).
+  func post(hakedisId: UUID, entryDate: CalendarDate?) async throws -> Hakedis {
+    try await post(hakedisId: hakedisId, entryDate: entryDate, exchangeRate: nil)
+  }
+
+  /// TL sözleşmeler için kısayol (kur 1).
+  func releaseTeminat(id: UUID, contractId: UUID, amount: Decimal, reason: String,
+                      date: CalendarDate?) async throws -> TeminatRelease {
+    try await releaseTeminat(id: id, contractId: contractId, amount: amount, reason: reason, date: date, exchangeRate: nil)
+  }
 }
 
 /// Uygulamanın kullandığı tüm repository'ler (bağımlılık enjeksiyonu için).

@@ -167,9 +167,10 @@ struct PaymentSheet: View {
   let remaining: Decimal
   let currency: String
   let sources: [PaymentSource]
-  let action: (Decimal, UUID, CalendarDate, String?) async -> Bool
+  let action: (Decimal, UUID, CalendarDate, String?, Decimal?) async -> Bool
   @Environment(\.dismiss) private var dismiss
   @State private var amountText = ""
+  @State private var rateText = ""
   @State private var sourceId: UUID?
   @State private var date = Date()
   @State private var note = ""
@@ -180,14 +181,14 @@ struct PaymentSheet: View {
     guard let amount, amount > 0 else { return amountText.isEmpty ? nil : "Tutar geçersiz." }
     if remaining > 0, amount > remaining { return "Tutar kalan \(Money.format(remaining, currency: currency)) üstünde." }
     if sourceId == nil { return "Ödeme kaynağını seçin." }
-    return nil
+    return ExchangeRateField.problem(currency: currency, text: rateText)
   }
 
   var body: some View {
     NavigationStack {
       Form {
         Section {
-          TextField("Tutar (₺)", text: $amountText)
+          TextField(currency == "TRY" ? "Tutar (₺)" : "Tutar (\(currency))", text: $amountText)
             .keyboardType(.decimalPad)
             .font(RDFont.metric)
             .monospacedDigit()
@@ -202,6 +203,7 @@ struct PaymentSheet: View {
             ForEach(sources) { Text($0.name).tag(Optional($0.id)) }
           }
           DatePicker("Ödeme tarihi", selection: $date, in: ...Date(), displayedComponents: .date)
+          ExchangeRateField(currency: currency, text: $rateText)
         } footer: {
           Text("Ödeme kaynağı (ör. şirket ödemesi, kart) bilgi amaçlıdır; kasa veya banka bakiyesi tutulmaz.")
         }
@@ -220,7 +222,8 @@ struct PaymentSheet: View {
             guard let amount, let sourceId else { return }
             Task {
               isWorking = true
-              if await action(amount, sourceId, CalendarDate(date), note.nilIfBlank) { dismiss() }
+              if await action(amount, sourceId, CalendarDate(date), note.nilIfBlank,
+                              ExchangeRateField.rate(currency: currency, text: rateText)) { dismiss() }
               isWorking = false
             }
           }
@@ -231,6 +234,34 @@ struct PaymentSheet: View {
       .onAppear { if sources.count == 1 { sourceId = sources[0].id } }
       .interactiveDismissDisabled(isWorking)
     }
+  }
+}
+
+/// TRY dışı işlemde kur girişi (1 birim = ? ₺). Kur tahmin edilmez ve
+/// varsayılan değer yoktur; TL işlemde alan görünmez (kur 1).
+struct ExchangeRateField: View {
+  let currency: String
+  @Binding var text: String
+
+  var body: some View {
+    if currency != "TRY" {
+      TextField("Kur (1 \(currency) = ? ₺)", text: $text)
+        .keyboardType(.decimalPad)
+        .monospacedDigit()
+        .accessibilityHint("İşlem tarihindeki kuru girin")
+    }
+  }
+
+  static func rate(currency: String, text: String) -> Decimal? {
+    currency == "TRY" ? nil : HakedisMath.parseExchangeRate(text)
+  }
+
+  static func problem(currency: String, text: String) -> String? {
+    guard currency != "TRY" else { return nil }
+    guard let rate = HakedisMath.parseExchangeRate(text) else {
+      return text.isEmpty ? "\(currency) işlemde kur zorunlu." : "Kur geçersiz."
+    }
+    return HakedisMath.scale(rate) > 6 ? "Kur en çok 6 ondalıklı olmalı." : nil
   }
 }
 

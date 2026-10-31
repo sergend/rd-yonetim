@@ -647,24 +647,26 @@ struct ContractDetailView: View {
     case .newHakedis:
       NewHakedisSheet(model: model, app: app)
     case .release:
-      TeminatReleaseSheet(balance: model.summary?.retentionBalance ?? 0) { amount, reason, date in
-        await model.releaseTeminat(amount: amount, reason: reason, date: date)
+      TeminatReleaseSheet(balance: model.summary?.retentionBalance ?? 0, currency: model.contract.currency) {
+        amount, reason, date, rate in
+        await model.releaseTeminat(amount: amount, reason: reason, date: date, exchangeRate: rate)
       }
     case .cancelRelease(let release):
       ReasonSheet(title: "Teminat iadesini iptal et", message: "İade ters kayıtla geri alınır.", actionTitle: "İptal et",
                   destructive: true) { await model.cancelRelease(release, reason: $0) }
     case .payRelease(let release):
       PaymentSheet(title: "Teminat iadesi ödemesi", remaining: model.unpaidRelease(release), currency: model.contract.currency,
-                   sources: model.paymentSources) { amount, source, date, note in
+                   sources: model.paymentSources) { amount, source, date, note, rate in
         await model.recordPayment(FinancePaymentDraft(contractId: model.contract.id, target: .teminatRelease(release.id),
                                                       amount: amount, paymentSourceId: source, paymentDate: date,
-                                                      description: note))
+                                                      description: note, exchangeRate: rate))
       }
     case .advance:
       PaymentSheet(title: "Avans ver", remaining: 0, currency: model.contract.currency, sources: model.paymentSources) {
-        amount, source, date, note in
+        amount, source, date, note, rate in
         await model.recordPayment(FinancePaymentDraft(contractId: model.contract.id, target: .advance, amount: amount,
-                                                      paymentSourceId: source, paymentDate: date, description: note))
+                                                      paymentSourceId: source, paymentDate: date, description: note,
+                                                      exchangeRate: rate))
       }
     case .cancelPayment(let payment):
       ReasonSheet(title: "Ödemeyi iptal et", message: "Ödeme ters kayıtla geri alınır; hakedişin kalanı yeniden açılır.",
@@ -728,9 +730,11 @@ struct NewHakedisSheet: View {
 
 struct TeminatReleaseSheet: View {
   let balance: Decimal
-  let action: (Decimal, String, CalendarDate) async -> Bool
+  var currency = "TRY"
+  let action: (Decimal, String, CalendarDate, Decimal?) async -> Bool
   @Environment(\.dismiss) private var dismiss
   @State private var amountText = ""
+  @State private var rateText = ""
   @State private var reason = ""
   @State private var date = Date()
   @State private var isWorking = false
@@ -738,23 +742,24 @@ struct TeminatReleaseSheet: View {
   private var amount: Decimal? { Money.parse(amountText) }
   private var problem: String? {
     guard let amount, amount > 0 else { return amountText.isEmpty ? nil : "Tutar geçersiz." }
-    if amount > balance { return "Biriken teminat \(Money.format(balance)) üstünde." }
+    if amount > balance { return "Biriken teminat \(Money.format(balance, currency: currency)) üstünde." }
     if reason.trimmingCharacters(in: .whitespaces).count < 10 { return "Gerekçe en az 10 karakter." }
-    return nil
+    return ExchangeRateField.problem(currency: currency, text: rateText)
   }
 
   var body: some View {
     NavigationStack {
       Form {
         Section {
-          MoneyRow(label: "Biriken teminat", amount: balance)
-          TextField("Serbest bırakılacak tutar (₺)", text: $amountText)
+          MoneyRow(label: "Biriken teminat", amount: balance, currency: currency)
+          TextField("Serbest bırakılacak tutar", text: $amountText)
             .keyboardType(.decimalPad)
             .font(RDFont.metric)
             .monospacedDigit()
           Button("Tamamı") { amountText = Money.format(balance, currency: "").trimmingCharacters(in: .whitespaces) }
             .font(RDFont.secondary)
           DatePicker("Tarih", selection: $date, in: ...Date(), displayedComponents: .date)
+          ExchangeRateField(currency: currency, text: $rateText)
           TextField("Gerekçe (ör. kesin kabul yapıldı)", text: $reason, axis: .vertical)
         } footer: {
           Text("Kısmi veya tam serbest bırakılabilir. Bu işlem ödeme değildir; ödeme ayrıca kaydedilir.")
@@ -773,7 +778,8 @@ struct TeminatReleaseSheet: View {
             guard let amount else { return }
             Task {
               isWorking = true
-              if await action(amount, reason.trimmingCharacters(in: .whitespaces), CalendarDate(date)) { dismiss() }
+              if await action(amount, reason.trimmingCharacters(in: .whitespaces), CalendarDate(date),
+                              ExchangeRateField.rate(currency: currency, text: rateText)) { dismiss() }
               isWorking = false
             }
           }

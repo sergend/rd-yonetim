@@ -44,6 +44,8 @@ public actor InMemoryBackend {
   public var financeEventList: [FinanceEvent] = []
   /// Deftere işlenen hakedişin oluşturduğu cari hareketler (hakediş ve kesintiler).
   public var postedEntryIds: [UUID: [UUID]] = [:]
+  /// Finans hareketinin kuru (ödeme, teminat iadesi, hakediş); TRY'de 1.
+  public var exchangeRates: [UUID: Decimal] = [:]
   public var today = CalendarDate.today()
   public internal(set) var saveCallCount = 0
   /// Sonraki çağrıda fırlatılacak hata (test için).

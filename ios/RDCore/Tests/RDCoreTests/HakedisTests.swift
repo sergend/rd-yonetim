@@ -47,6 +47,26 @@ final class HakedisMathTests: XCTestCase {
     XCTAssertEqual(HakedisMath.payable(gross: gross, kdv: kdv, stopaj: stopaj, retention: retention), 55_212)
   }
 
+  func testExchangeRateRuleMatchesDatabase() throws {
+    XCTAssertEqual(try HakedisMath.exchangeRate(currency: "TRY", rate: nil), 1)
+    XCTAssertEqual(try HakedisMath.exchangeRate(currency: "TRY", rate: 1), 1)
+    XCTAssertThrowsError(try HakedisMath.exchangeRate(currency: "TRY", rate: 2), "TL'de kur yalnızca 1")
+    XCTAssertThrowsError(try HakedisMath.exchangeRate(currency: "USD", rate: nil), "döviz kuru tahmin edilmez")
+    XCTAssertThrowsError(try HakedisMath.exchangeRate(currency: "USD", rate: 0))
+    XCTAssertThrowsError(try HakedisMath.exchangeRate(currency: "EUR", rate: Decimal(string: "41.1234567")!))
+    XCTAssertEqual(try HakedisMath.exchangeRate(currency: "EUR", rate: Decimal(string: "44.123456")!),
+                   Decimal(string: "44.123456"))
+  }
+
+  func testExchangeRateInputHasNoThousandsSeparator() {
+    XCTAssertEqual(HakedisMath.parseExchangeRate("41,5"), Decimal(string: "41.5"))
+    XCTAssertEqual(HakedisMath.parseExchangeRate("41.500"), Decimal(string: "41.5"), "kurda nokta binlik değil ondalıktır")
+    XCTAssertNil(HakedisMath.parseExchangeRate("1.234,5"))
+    XCTAssertNil(HakedisMath.parseExchangeRate(""))
+    XCTAssertNil(HakedisMath.parseExchangeRate("0"))
+    XCTAssertNil(HakedisMath.parseExchangeRate("-3"))
+  }
+
   func testLumpSumUsesCumulativeProgress() {
     XCTAssertEqual(HakedisMath.lumpSum(price: 100_000, cumulativePercent: 40, previousAmount: 0), 40_000)
     XCTAssertEqual(HakedisMath.lumpSum(price: 100_000, cumulativePercent: 75, previousAmount: 40_000), 35_000)
@@ -122,9 +142,10 @@ final class HakedisFlowTests: XCTestCase {
   private var admin: AccessControl { AccessControl(grants: grants(PermissionKey.allCases)) }
 
   /// %20 teminatlı, 150 m³ × 10.000 birim fiyatlı onaylı sözleşme.
-  private func makeContract() async throws -> (ContractDetailViewModel, ContractItem) {
+  private func makeContract(currency: String = "TRY") async throws -> (ContractDetailViewModel, ContractItem) {
     let form = ContractFormViewModel(projectId: project.id, projects: [project], subcontractors: [sub],
                                      taxRules: [], repository: repository)
+    form.currency = currency
     form.subcontractorId = sub.id
     form.contractNo = "test-s-1"
     form.title = "Kaba yapı betonu"
@@ -346,6 +367,88 @@ final class HakedisFlowTests: XCTestCase {
     } catch {
       XCTAssertEqual(error as? RepositoryError, .forbidden("Sözleşme finans özetini görme yetkiniz yok"))
     }
+  }
+
+  /// Onaylanmış (deftere işlenmemiş) %20 teminatlı hakediş: brüt 1.000.000, ödemeye uygun 800.000.
+  private func approvedHakedis(_ detail: ContractDetailViewModel) async throws -> HakedisDetailViewModel {
+    _ = await enterImalat("100", date: day(9, 20))
+    let created = await detail.createHakedis(start: day(9, 1), end: day(9, 30), note: nil)
+    let hakedis = try XCTUnwrap(created, detail.errorMessage ?? "")
+    let model = HakedisDetailViewModel(hakedis: hakedis, contract: detail.contract, access: admin, repository: repository)
+    _ = await model.transition(.gonder)
+    _ = await model.transition(.onayla)
+    return model
+  }
+
+  func testRepeatedPaymentIdWithDifferentSourceOrDateIsRejected() async throws {
+    let (detail, _) = try await makeContract()
+    let model = try await approvedHakedis(detail)
+    _ = await model.post()
+    let card = PaymentSource(name: "Kürşat kartı", kind: .kart)
+    await backend.seedContracts(paymentSources: [card])
+    let draft = FinancePaymentDraft(contractId: detail.contract.id, target: .hakedis(model.hakedis.id), amount: 300_000,
+                                    paymentSourceId: source.id, paymentDate: day(10, 10))
+    _ = try await repository.recordPayment(draft)
+    _ = try await repository.recordPayment(draft)  // aynı niyet: aynı kayıt
+
+    var otherSource = draft
+    otherSource.paymentSourceId = card.id
+    var otherDate = draft
+    otherDate.paymentDate = day(10, 11)
+    for changed in [otherSource, otherDate] {
+      do {
+        _ = try await repository.recordPayment(changed)
+        XCTFail("farklı kaynak veya tarihle aynı kimlik kabul edilmemeli")
+      } catch {
+        guard case .conflict = error as? RepositoryError else { return XCTFail("\(error)") }
+      }
+    }
+    let payments = try await repository.payments(contractId: detail.contract.id)
+    XCTAssertEqual(payments.count, 1)
+    XCTAssertEqual(payments.first?.paymentSourceId, source.id, "ilk kaydın kaynağı korunur")
+  }
+
+  func testForeignCurrencyRequiresExplicitExchangeRate() async throws {
+    let (detail, _) = try await makeContract(currency: "USD")
+    XCTAssertTrue(detail.needsExchangeRate)
+    let model = try await approvedHakedis(detail)
+    XCTAssertTrue(model.needsExchangeRate)
+    var ok = await model.post()
+    XCTAssertFalse(ok, "USD hakediş kursuz deftere işlenmez")
+    ok = await model.post(exchangeRate: Decimal(string: "41.5"))
+    XCTAssertTrue(ok, model.errorMessage ?? "")
+    ok = await model.recordPayment(amount: 1_000, sourceId: source.id, date: day(10, 20), description: nil)
+    XCTAssertFalse(ok, "USD ödeme kursuz kaydedilmez")
+    ok = await model.recordPayment(amount: 1_000, sourceId: source.id, date: day(10, 20), description: nil, exchangeRate: 42)
+    XCTAssertTrue(ok, model.errorMessage ?? "")
+    await detail.load()
+    ok = await detail.releaseTeminat(amount: 100, reason: "Kısmi kabul yapıldı", date: day(10, 25))
+    XCTAssertFalse(ok, "USD teminat iadesi kursuz yapılmaz")
+    ok = await detail.releaseTeminat(amount: 100, reason: "Kısmi kabul yapıldı", date: day(10, 25), exchangeRate: 44)
+    XCTAssertTrue(ok, detail.errorMessage ?? "")
+  }
+
+  func testTryRejectsExchangeRateOtherThanOne() async throws {
+    let (detail, _) = try await makeContract()
+    XCTAssertFalse(detail.needsExchangeRate)
+    let model = try await approvedHakedis(detail)
+    var ok = await model.post(exchangeRate: 2)
+    XCTAssertFalse(ok, "TL hakedişte kur 1 dışında olamaz")
+    ok = await model.post()
+    XCTAssertTrue(ok)
+  }
+
+  func testAdvanceIsLimitedByContractAmount() async throws {
+    let (detail, _) = try await makeContract()
+    var ok = await detail.recordPayment(FinancePaymentDraft(contractId: detail.contract.id, target: .advance,
+                                                            amount: 1_000_000, paymentSourceId: source.id, paymentDate: day(9, 1)))
+    XCTAssertTrue(ok, detail.errorMessage ?? "")
+    ok = await detail.recordPayment(FinancePaymentDraft(contractId: detail.contract.id, target: .advance,
+                                                        amount: Decimal(string: "500000.01")!, paymentSourceId: source.id,
+                                                        paymentDate: day(9, 2)))
+    XCTAssertFalse(ok, "toplam avans sözleşme bedelini (1.500.000) aşamaz")
+    XCTAssertEqual(detail.summary?.advancePaidTotal, 1_000_000)
+    XCTAssertEqual(detail.summary?.paidTotal, 0, "avans gerçekleşen ödeme sayılmaz")
   }
 
   func testAdvanceDeductionCannotExceedOpenAdvance() async throws {

@@ -265,8 +265,11 @@ struct SupabaseContractRepository: ContractRepository {
     ])
   }
 
-  func post(hakedisId: UUID, entryDate: CalendarDate?) async throws -> Hakedis {
-    try await rpc("post_hakedis", ["p_hakedis_id": .string(hakedisId.uuidString), "p_entry_date": Self.json(entryDate)])
+  func post(hakedisId: UUID, entryDate: CalendarDate?, exchangeRate: Decimal?) async throws -> Hakedis {
+    try await rpc("post_hakedis", [
+      "p_hakedis_id": .string(hakedisId.uuidString), "p_entry_date": Self.json(entryDate),
+      "p_exchange_rate": Self.decimal(exchangeRate),
+    ])
   }
 
   // MARK: Teminat ve ödeme
@@ -279,10 +282,11 @@ struct SupabaseContractRepository: ContractRepository {
   }
 
   func releaseTeminat(id: UUID, contractId: UUID, amount: Decimal, reason: String,
-                      date: CalendarDate?) async throws -> TeminatRelease {
+                      date: CalendarDate?, exchangeRate: Decimal?) async throws -> TeminatRelease {
     try await rpc("release_teminat", [
       "p_id": .string(id.uuidString), "p_contract_id": .string(contractId.uuidString),
       "p_amount": Self.decimal(amount), "p_reason": .string(reason), "p_release_date": Self.json(date),
+      "p_exchange_rate": Self.decimal(exchangeRate),
     ])
   }
 
@@ -310,6 +314,7 @@ struct SupabaseContractRepository: ContractRepository {
       "p_kind": .string(draft.kind.rawValue), "p_amount": Self.decimal(draft.amount),
       "p_payment_source_id": .string(draft.paymentSourceId.uuidString), "p_payment_date": .string(draft.paymentDate.iso),
       "p_hakedis_id": hakedisId, "p_teminat_release_id": releaseId, "p_description": Self.json(draft.description),
+      "p_exchange_rate": Self.decimal(draft.exchangeRate),
     ])
   }
 
