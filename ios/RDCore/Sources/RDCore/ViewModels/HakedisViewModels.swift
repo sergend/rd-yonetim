@@ -486,6 +486,22 @@ public final class ContractDetailViewModel {
   /// TRY dışı sözleşmede her finansal işlem kur ister.
   public var needsExchangeRate: Bool { contract.currency != "TRY" }
 
+  /// Avans için kalan tavan (onaylı sözleşme bedeli − etkin avanslar). Bedel
+  /// tanımlı değilse nil: avans verilemez, tavan türetilmez.
+  public var advanceRoom: Decimal? {
+    guard let limit = summary?.contractAmount else { return nil }
+    return max(0, limit - (summary?.advancePaidTotal ?? 0))
+  }
+
+  /// Avans verilemiyorsa nedeni (ekranda gösterilir).
+  public var advanceBlockedReason: String? {
+    guard summary != nil else { return nil }
+    guard let room = advanceRoom else {
+      return "Sözleşme bedeli tanımlı olmadığı için avans verilemez. Önce bedeli içeren bir revizyon onaylayın."
+    }
+    return room > 0 ? nil : "Verilen avans sözleşme bedeline ulaştı; yeni avans verilemez."
+  }
+
   @discardableResult
   public func cancelRelease(_ release: TeminatRelease, reason: String) async -> Bool {
     await perform("Teminat iadesi iptal edildi (ters kayıtla).") {

@@ -2,7 +2,8 @@
 
 Hesap kurallarının ayrıntısı ve örnekler: [hakedis-hesaplama.md](../hakedis-hesaplama.md).
 Migration: `supabase/migrations/20261101000000_sozlesme_hakedis.sql` (eski migration'lar değişmedi).
-İnceleme düzeltmeleri (madde 27–29): `supabase/migrations/20261102000000_hakedis_odeme_duzeltmeleri.sql`.
+İnceleme düzeltmeleri (madde 27–29): `supabase/migrations/20261102000000_hakedis_odeme_duzeltmeleri.sql`;
+avans tavanı (madde 30): `supabase/migrations/20261103000000_avans_tavani.sql`.
 
 | # | Karar | Gerekçe |
 | --- | --- | --- |
@@ -35,3 +36,4 @@ Migration: `supabase/migrations/20261101000000_sozlesme_hakedis.sql` (eski migra
 | 27 | Normal ödeme (`odeme`) her zaman **tam olarak bir** yükümlülüğe bağlanır: deftere işlenmiş hakediş veya etkin teminat iadesi (fonksiyon kontrolü + `finance_payments_odeme_target_ck`). Hedefin kalanını aşan ödeme açık hatayla reddedilir. Hedefsiz ödeme yalnızca açıkça `avans` olarak kaydedilir: yalnızca aktif sözleşmeye, sözleşme bedeli biliniyorsa etkin avans toplamı bedeli aşamaz; avans gerçekleşen ödeme sayılmaz, hakedişte mahsup edilir | Hedefsiz ödeme özetteki kalanı eksiye düşürebiliyordu; ödeme yükümlülük olmadan para çıkışı gibi görünmemeli. |
 | 28 | Döviz: TRY dışı sözleşmede deftere işleme, teminat iadesi ve ödeme için kur **zorunludur** (> 0, en çok 6 ondalık) ve istemciden açıkça gelir; varsayılan yoktur, kod kur tahmin etmez veya sabitlemez. TRY'de kur yalnızca 1. Her cari hareket kendi tarihindeki kurla yazılır (`amount_try = round(tutar × kur, 2)`), kur `finance_events` geçmişinde de saklanır. Sözleşme özetleri sözleşme para birimindedir; kur farkı hesaplanmaz | Önceden teminat iadesi ve ödeme kur 1 ile yazılıyordu; USD/EUR işlemde TL karşılığı yanlış oluyordu. |
 | 29 | Ödeme tekrar gönderimi yalnızca aynı **kullanıcı niyetiyle** aynı kaydı döner: sözleşme, tür, tutar, hedef, ödeme kaynağı, ödeme tarihi (gönderilmişse) ve kur aynı olmalı; biri farklıysa 23505 uyuşmazlık. Teminat iadesinde tutar, tarih ve kur karşılaştırılır | "Şirket ödemesi" ile "kart" gibi farklı kaynakla gelen istek sessizce eski kayda bağlanmamalı. |
+| 30 | Avansın tavanı yalnızca onaylı revizyonda açıkça girilmiş sözleşme bedelidir (`total_amount`). Bedel tanımlı değilse avans açık hatayla reddedilir; miktar × fiyat gibi bir tavan türetilmez. Bedele tam eşit toplam kabul, aşan reddedilir; iptal edilen avans tavandan düşer. Ekranda bedel yoksa veya tavan doluysa "Avans ver" yerine neden gösterilir | Bedel isteğe bağlı olduğundan önceki kural bedelsiz sözleşmede sınırsız avansa izin veriyordu. |

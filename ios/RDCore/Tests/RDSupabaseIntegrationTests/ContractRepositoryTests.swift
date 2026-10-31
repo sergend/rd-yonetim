@@ -232,4 +232,53 @@ final class ContractRepositoryTests: XCTestCase {
     XCTAssertEqual(summary.paidTotal, 1_000, "özet sözleşme para biriminde")
     XCTAssertEqual(summary.remainingTotal, 2_600)
   }
+
+  func testAdvanceNeedsDefinedContractAmountAndStaysWithinIt() async throws {
+    let repos = try await signedIn("yonetici@example.test")
+    let projects = try await repos.projects.list(includeCompleted: true)
+    let sivas = try XCTUnwrap(projects.first { $0.code == "DEMO-SVS" })
+    let subs = try await repos.workforce.subcontractors()
+    let sub = try XCTUnwrap(subs.first { $0.name == "Örnek Kaba İnşaat Taşeronu" })
+    let sources = try await repos.contracts.paymentSources()
+    let source = try XCTUnwrap(sources.first)
+    let today = CalendarDate.today()
+
+    func approvedContract(total: Decimal?) async throws -> UUID {
+      let id = UUID()
+      let draft = ContractDraft(
+        projectId: sivas.id, subcontractorId: sub.id, contractNo: "TEST-AV-\(id.uuidString.prefix(8))",
+        title: "Avans tavanı testi (demo)",
+        items: [ContractItemDraft(itemKey: UUID(), method: .birimFiyat, description: "Sıva", unit: .m2,
+                                  quantity: 10, unitPrice: 100)],
+        totalAmount: total)
+      let saved = try await repos.contracts.saveContract(id: id, draft: draft, expectedVersion: nil)
+      _ = try await repos.contracts.transition(contractId: id, action: .onayla, reason: nil, expectedVersion: saved.version)
+      return id
+    }
+    func advance(_ contractId: UUID, _ amount: Decimal) -> FinancePaymentDraft {
+      FinancePaymentDraft(contractId: contractId, target: .advance, amount: amount, paymentSourceId: source.id,
+                          paymentDate: today)
+    }
+
+    let noTotal = try await approvedContract(total: nil)
+    do {
+      _ = try await repos.contracts.recordPayment(advance(noTotal, 1))
+      XCTFail("bedeli tanımsız sözleşmeye avans verilmemeli")
+    } catch let error as RepositoryError {
+      guard case .validation(let message) = error else { return XCTFail("beklenmeyen hata: \(error)") }
+      XCTAssertTrue(message.contains("bedeli tanımlı olmayan"), message)
+    }
+
+    let limited = try await approvedContract(total: 1_000)
+    _ = try await repos.contracts.recordPayment(advance(limited, 1_000))  // bedele tam eşit
+    do {
+      _ = try await repos.contracts.recordPayment(advance(limited, Decimal(string: "0.01")!))
+      XCTFail("bedeli aşan avans reddedilmeli")
+    } catch let error as RepositoryError {
+      guard case .validation = error else { return XCTFail("beklenmeyen hata: \(error)") }
+    }
+    let summary = try await repos.contracts.financeSummary(contractId: limited)
+    XCTAssertEqual(summary.advancePaidTotal, 1_000)
+    XCTAssertEqual(summary.paidTotal, 0)
+  }
 }

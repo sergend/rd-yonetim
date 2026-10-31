@@ -449,6 +449,38 @@ final class HakedisFlowTests: XCTestCase {
     XCTAssertFalse(ok, "toplam avans sözleşme bedelini (1.500.000) aşamaz")
     XCTAssertEqual(detail.summary?.advancePaidTotal, 1_000_000)
     XCTAssertEqual(detail.summary?.paidTotal, 0, "avans gerçekleşen ödeme sayılmaz")
+    XCTAssertEqual(detail.advanceRoom, 500_000)
+    ok = await detail.recordPayment(FinancePaymentDraft(contractId: detail.contract.id, target: .advance,
+                                                        amount: 500_000, paymentSourceId: source.id, paymentDate: day(9, 3)))
+    XCTAssertTrue(ok, "toplamı bedele tam eşit avans kabul")
+    XCTAssertEqual(detail.advanceRoom, 0)
+    XCTAssertNotNil(detail.advanceBlockedReason, "tavan dolunca ekranda neden gösterilir")
+    let last = try XCTUnwrap(detail.payments.first { $0.amount == 500_000 })
+    ok = await detail.cancelPayment(last, reason: "Yanlış tutarla girildi")
+    XCTAssertTrue(ok)
+    XCTAssertEqual(detail.advanceRoom, 500_000, "iptal edilen avans tavandan düşülür")
+    XCTAssertNil(detail.advanceBlockedReason)
+  }
+
+  func testAdvanceIsRejectedWhenContractAmountIsUndefined() async throws {
+    let form = ContractFormViewModel(projectId: project.id, projects: [project], subcontractors: [sub],
+                                     taxRules: [], repository: repository)
+    form.subcontractorId = sub.id
+    form.contractNo = "test-s-bedelsiz"
+    form.title = "Bedelsiz sözleşme"
+    form.items = [ContractItemForm(method: .birimFiyat, description: "Sıva", unit: .m2, quantityText: "100", priceText: "150")]
+    let saved = await form.save()
+    let contract = try XCTUnwrap(saved, form.errorMessage ?? "")
+    let detail = ContractDetailViewModel(contract: contract, access: admin, repository: repository)
+    await detail.load()
+    _ = await detail.transition(.onayla)
+    XCTAssertNil(detail.summary?.contractAmount)
+    XCTAssertNil(detail.advanceRoom, "bedel yoksa tavan türetilmez")
+    XCTAssertNotNil(detail.advanceBlockedReason)
+    let ok = await detail.recordPayment(FinancePaymentDraft(contractId: detail.contract.id, target: .advance, amount: 1,
+                                                            paymentSourceId: source.id, paymentDate: day(9, 1)))
+    XCTAssertFalse(ok, "bedeli tanımsız sözleşmeye avans verilemez")
+    XCTAssertEqual(detail.errorMessage?.contains("bedeli tanımlı olmayan"), true, detail.errorMessage ?? "")
   }
 
   func testAdvanceDeductionCannotExceedOpenAdvance() async throws {

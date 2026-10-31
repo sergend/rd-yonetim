@@ -595,7 +595,13 @@ struct ContractDetailView: View {
         }
       }
       if model.canPay && !model.paymentSources.isEmpty {
-        Button { sheet = .advance } label: { Label("Avans ver", systemImage: "arrow.up.right.circle") }
+        if let reason = model.advanceBlockedReason {
+          Label(reason, systemImage: "exclamationmark.circle")
+            .font(RDFont.secondary)
+            .foregroundStyle(RDColor.textSecondary)
+        } else {
+          Button { sheet = .advance } label: { Label("Avans ver", systemImage: "arrow.up.right.circle") }
+        }
       }
     } header: {
       Text("Ödemeler ve avanslar")
@@ -662,7 +668,8 @@ struct ContractDetailView: View {
                                                       description: note, exchangeRate: rate))
       }
     case .advance:
-      PaymentSheet(title: "Avans ver", remaining: 0, currency: model.contract.currency, sources: model.paymentSources) {
+      PaymentSheet(title: "Avans ver", remaining: model.advanceRoom ?? 0, currency: model.contract.currency,
+                   sources: model.paymentSources) {
         amount, source, date, note, rate in
         await model.recordPayment(FinancePaymentDraft(contractId: model.contract.id, target: .advance, amount: amount,
                                                       paymentSourceId: source, paymentDate: date, description: note,

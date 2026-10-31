@@ -785,12 +785,15 @@ extension InMemoryBackend {
     }
     if draft.kind == .avans {
       guard contract.status == .aktif else { throw RepositoryError.validation("Avans yalnızca aktif sözleşmeye verilir.") }
-      if let limit = approvedVersion(contractId: contract.id)?.totalAmount {
-        let given = financePaymentList.filter { $0.contractId == contract.id && $0.kind == .avans && $0.status == .aktif }
-          .reduce(Decimal.zero) { $0 + $1.amount }
-        guard given + draft.amount <= limit else {
-          throw RepositoryError.validation("Toplam avans sözleşme bedelini (\(Money.format(limit, currency: contract.currency))) aşamaz.")
-        }
+      // Tavan yalnızca onaylı revizyonda girilmiş sözleşme bedelidir; türetilmez.
+      guard let limit = approvedVersion(contractId: contract.id)?.totalAmount else {
+        throw RepositoryError.validation(
+          "Sözleşme bedeli tanımlı olmayan sözleşmeye avans verilemez; önce bedeli içeren bir revizyon onaylayın.")
+      }
+      let given = financePaymentList.filter { $0.contractId == contract.id && $0.kind == .avans && $0.status == .aktif }
+        .reduce(Decimal.zero) { $0 + $1.amount }
+      guard given + draft.amount <= limit else {
+        throw RepositoryError.validation("Toplam avans sözleşme bedelini (\(Money.format(limit, currency: contract.currency))) aşamaz.")
       }
     }
     let payment = FinancePayment(id: draft.id, contractId: contract.id, kind: draft.kind, amount: draft.amount,

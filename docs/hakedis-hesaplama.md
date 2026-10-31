@@ -145,7 +145,7 @@ Tekrar çağrı aynı sonucu döner. İptalde bu hareketler ters kayıtla kapat�
 | Tür | Hedef | Sınır |
 | --- | --- | --- |
 | `odeme` | Tam olarak bir: deftere işlenmiş hakediş **veya** etkin teminat iadesi | Hedefin kalanı (hakediş: ödemeye uygun − ödenen; iade: iade − ödenen) |
-| `avans` | Yok | Yalnızca aktif sözleşme; sözleşme bedeli biliniyorsa etkin avans toplamı ≤ bedel |
+| `avans` | Yok | Yalnızca aktif sözleşme ve onaylı revizyonda **tanımlı sözleşme bedeli**; etkin (iptal edilmemiş) avans toplamı ≤ bedel. Bedel yoksa avans reddedilir; tavan türetilmez |
 
 Hedefsiz `odeme` reddedilir (23514); avans gerçekleşen ödeme sayılmaz.
 

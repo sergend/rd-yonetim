@@ -119,6 +119,7 @@ işlenmiş (brüt 312.000, teminat 31.200, avans mahsubu 50.000, ödemeye uygun
 - [ ] Hakediş detayı koyu temada ve en büyük metin boyutunda okunaklı; VoiceOver tutar satırlarını "eklenir/düşülür" ile okur.
 - [ ] USD sözleşme açın (para birimi USD): "Cari deftere işle" kur sorar; kur boşken kaydedilemez. Ödeme ve teminat iadesi sayfalarında "Kur (1 USD = ? ₺)" alanı görünür, boşken Kaydet kapalıdır; TL sözleşmede bu alan görünmez.
 - [ ] Aynı ödemeyi çift dokunuşla iki kez gönderin: tek ödeme oluşur.
+- [ ] Sözleşme bedeli girilmeden onaylanan sözleşmede "Avans ver" yerine "Sözleşme bedeli tanımlı olmadığı için avans verilemez" yazar; bedelli sözleşmede avans sayfası kalan tavanı gösterir, aşan tutar Kaydet'i kapatır.
 
 ## 5. Otomatik testler
 
