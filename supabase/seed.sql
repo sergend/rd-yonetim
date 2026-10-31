@@ -239,6 +239,46 @@ begin
                                 '2026-10-01', '2026-10-31', 'Ekim hakedişi (demo)');
   perform public.hakedis_transition('00000000-0000-4000-8000-0000000000e3', 'gonder');
 
+  -- Gider, gelir ve borç (Aşama 5). Tutarlar hayalidir. Kategoriler migration
+  -- ile gelen düzenlenebilir başlangıç verisidir.
+  --   g1: cari bağlantılı demir faturası, onaylı, kısmen ödenmiş (vade geçmiş)
+  --   g2: sahada Kürşat kartıyla peşin ödenmiş akaryakıt (onayda ödeme doğar)
+  --   g3: ofis gideri, taslak (onay bekliyor)
+  --   g4: nakliye, onaylı, ödenmemiş, vadesi yakın
+  --   l1: daire alıcısından gelir, onaylı, kısmen tahsil edilmiş
+  perform public.save_payment_source('00000000-0000-4000-8000-0000000000f4', 'Kürşat kartı (demo)', 'kart');
+  perform public.save_finance_document('00000000-0000-4000-8000-000000000101', 'gider',
+    (select id from public.finance_categories where kind = 'gider' and name = 'Demir'),
+    'Ø12 nervürlü demir, B blok (demo)', 240000, '2026-10-02', p_project_id => v_sivas,
+    p_due_date => '2026-10-20', p_cari_account_id => v_demir, p_invoice_no => 'DMR-2026-118');
+  perform public.approve_finance_document('00000000-0000-4000-8000-000000000101');
+  perform public.record_finance_settlement('00000000-0000-4000-8000-000000000111',
+    '00000000-0000-4000-8000-000000000101', 100000, '00000000-0000-4000-8000-0000000000f1', '2026-10-15',
+    'Deneme Muhasebe', 'Demir faturası kısmi ödeme (demo)');
+  perform public.save_finance_document('00000000-0000-4000-8000-000000000102', 'gider',
+    (select id from public.finance_categories where kind = 'gider' and name = 'Akaryakıt'),
+    'İş makinesi motorin (demo)', 4250.50, '2026-10-21', p_project_id => v_sivas,
+    p_reported_settled => true, p_reported_source_id => '00000000-0000-4000-8000-0000000000f4',
+    p_reported_by => 'Kürşat (demo)', p_document_ref => 'Fiş no 4471');
+  perform public.approve_finance_document('00000000-0000-4000-8000-000000000102',
+                                          p_settlement_id => '00000000-0000-4000-8000-000000000112');
+  perform public.save_finance_document('00000000-0000-4000-8000-000000000103', 'gider',
+    (select id from public.finance_categories where kind = 'gider' and name = 'Ofis gideri'),
+    'Ofis kırtasiye ve toner (demo)', 1830, '2026-10-25', p_cost_center_id => v_ofis);
+  perform public.save_finance_document('00000000-0000-4000-8000-000000000104', 'gider',
+    (select id from public.finance_categories where kind = 'gider' and name = 'Nakliye'),
+    'Kalıp malzemesi nakliyesi (demo)', 12500, '2026-10-26', p_project_id => v_sivas,
+    p_due_date => private.today() + 5);
+  perform public.approve_finance_document('00000000-0000-4000-8000-000000000104');
+  perform public.save_finance_document('00000000-0000-4000-8000-000000000105', 'gelir',
+    (select id from public.finance_categories where kind = 'gelir' and name = 'Satış geliri'),
+    'A Blok 5 nolu daire ara ödemesi (demo)', 750000, '2026-10-01', p_project_id => v_sivas,
+    p_due_date => '2026-11-15', p_cari_account_id => v_musteri, p_invoice_no => 'SAT-2026-005');
+  perform public.approve_finance_document('00000000-0000-4000-8000-000000000105');
+  perform public.record_finance_settlement('00000000-0000-4000-8000-000000000115',
+    '00000000-0000-4000-8000-000000000105', 250000, '00000000-0000-4000-8000-0000000000f1', '2026-10-10',
+    null, 'Ara ödemenin ilk kısmı (demo)');
+
   perform set_config('request.jwt.claims', '', true);
 end;
 $$;
