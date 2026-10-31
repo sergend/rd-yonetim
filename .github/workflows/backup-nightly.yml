@@ -91,15 +91,26 @@ jobs:
       CRYPT_PASSWORD: ${{ secrets.BACKUP_STORAGE_CRYPT_PASSWORD }}
       CRYPT_SALT: ${{ secrets.BACKUP_STORAGE_CRYPT_SALT }}
     steps:
-      - name: rclone
-        run: sudo apt-get update && sudo apt-get install -y rclone
+      - uses: actions/checkout@v4
 
-      - name: Belgeleri şifreli olarak eşitle (silinen/değişen dosyalar arşive taşınır)
+      - name: Araçlar (psql, rclone)
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client rclone
+
+      - name: Belge bütünlük listesi (yol, boyut, SHA-256) ve yetim nesne raporu
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          psql "$SUPABASE_DB_URL" -X -A -t -v ON_ERROR_STOP=1 -f scripts/backup/storage-manifest.sql > "$RUNNER_TEMP/storage-manifest.tsv"
+          echo "Listede $(grep -c . "$RUNNER_TEMP/storage-manifest.tsv" || true) belge dosyası var."
+          # Yalnızca rapor: yetim nesneler otomatik silinmez (runbook'a bakın).
+          psql "$SUPABASE_DB_URL" -X -A -t -v ON_ERROR_STOP=1 \
+            -c "select count(*) || ' yetim nesne (24 saatten eski, tamamlanmamış yükleme)' from private.document_orphan_objects()"
+
+      - name: Belgeleri şifreli olarak eşitle ve her dosyayı doğrula
         run: |
           export RCLONE_CONFIG_VAULT_TYPE=crypt
           export RCLONE_CONFIG_VAULT_REMOTE="backup:$BUCKET/storage"
           export RCLONE_CONFIG_VAULT_PASSWORD="$(rclone obscure "$CRYPT_PASSWORD")"
           export RCLONE_CONFIG_VAULT_PASSWORD2="$(rclone obscure "$CRYPT_SALT")"
-          stamp="$(date -u +%Y-%m-%dT%H%M%SZ)"
-          rclone sync supa: vault:current --backup-dir "vault:archive/$stamp" --checksum
-          rclone size vault:current
+          # Silinen/değişen dosyalar silinmez, vault:archive/<tarih> altına taşınır.
+          scripts/backup/storage-backup.sh supa:belgeler vault: "$RUNNER_TEMP/storage-manifest.tsv"

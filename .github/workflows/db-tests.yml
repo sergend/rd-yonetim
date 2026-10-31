@@ -37,10 +37,11 @@ jobs:
   backup-restore:
     name: Yedek al ve boş veritabanına geri yükle
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 30
     env:
       SOURCE_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
       TARGET_DB_URL: postgresql://postgres:postgres@127.0.0.1:54422/postgres
+      SUPABASE_EXCLUDE: studio,imgproxy,mailpit,realtime,edge-runtime,logflare,vector,supavisor,postgres-meta
     steps:
       - uses: actions/checkout@v4
 
@@ -48,27 +49,57 @@ jobs:
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
 
-      - name: PostgreSQL istemcisi ve pg_prove
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client libtap-parser-sourcehandler-pgtap-perl
+      - name: PostgreSQL istemcisi, pg_prove ve rclone
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client libtap-parser-sourcehandler-pgtap-perl rclone
 
-      - name: Kaynak veritabanını başlat
-        run: supabase db start
+      - name: Kaynak Supabase'i başlat (veritabanı, Auth, REST, Storage)
+        run: supabase start -x "$SUPABASE_EXCLUDE"
 
-      - name: Boş hedef veritabanını başlat (ayrı port)
+      - name: Deneme belgeleri yükle (gerçek yükleme akışıyla)
+        run: |
+          eval "$(supabase status -o env | grep -E '^(API_URL|ANON_KEY)=')"
+          scripts/backup/ci/storage-fixtures.sh "$API_URL" "$ANON_KEY"
+
+      - name: Boş hedef Supabase'i başlat (ayrı portlar)
         run: |
           mkdir -p "$RUNNER_TEMP/restore-target"
           cd "$RUNNER_TEMP/restore-target"
           supabase init --force
-          sed -i 's/^project_id = .*/project_id = "restore-target"/; s/^port = 54322/port = 54422/; s/^shadow_port = 54320/shadow_port = 54420/' supabase/config.toml
-          supabase db start
+          sed -i 's/^project_id = .*/project_id = "restore-target"/' supabase/config.toml
+          sed -i -E 's/^(port|shadow_port) = 543([0-9][0-9])$/\1 = 544\2/' supabase/config.toml
+          supabase start -x "$SUPABASE_EXCLUDE"
 
-      - name: Yedek al
+      - name: Veritabanı yedeği al (belge bütünlük listesi dahil)
         env:
           SUPABASE_DB_URL: ${{ env.SOURCE_DB_URL }}
         run: scripts/backup/backup.sh "$RUNNER_TEMP/backup"
 
-      - name: Geri yükle ve doğrula
+      - name: Belge dosyalarını şifreli yedeğe al ve doğrula
+        run: |
+          source scripts/backup/ci/rclone-local-env.sh "$PWD" "$RUNNER_TEMP"
+          scripts/backup/storage-backup.sh supa:belgeler vault: "$RUNNER_TEMP/backup/storage-manifest.tsv"
+          # Yedek gerçekten şifreli: düz dosya adı veya PDF imzası görünmemeli.
+          if grep -rqa '%PDF' "$RUNNER_TEMP/vault-raw"; then echo "Yedek şifresiz görünüyor" >&2; exit 1; fi
+          if find "$RUNNER_TEMP/vault-raw" -name '*.pdf' | grep -q .; then echo "Yedekte düz dosya adı var" >&2; exit 1; fi
+
+      - name: Eksik ve bozuk dosya sessizce geçmez
+        run: |
+          source scripts/backup/ci/rclone-local-env.sh "$PWD" "$RUNNER_TEMP"
+          scripts/backup/ci/storage-tamper-test.sh "$RUNNER_TEMP/backup/storage-manifest.tsv" vault:current/belgeler
+
+      - name: Veritabanını geri yükle ve doğrula
         run: scripts/backup/restore-verify.sh "$RUNNER_TEMP/backup" "$TARGET_DB_URL"
+
+      - name: Belge dosyalarını geri yükle, indir ve SHA-256 karşılaştır
+        run: |
+          source scripts/backup/ci/rclone-local-env.sh "$PWD" "$RUNNER_TEMP"
+          # Dosyalar geri yüklenmeden önce hedefte eksik olmalı (doğrulama bunu yakalamalı).
+          if scripts/backup/storage-verify.sh "$RUNNER_TEMP/backup/storage-manifest.tsv" target:belgeler; then
+            echo "HATA: dosyalar geri yüklenmeden doğrulama geçti" >&2; exit 1
+          fi
+          scripts/backup/storage-restore.sh vault: target:belgeler "$RUNNER_TEMP/backup/storage-manifest.tsv"
+          eval "$(cd "$RUNNER_TEMP/restore-target" && supabase status -o env | grep -E '^(API_URL|ANON_KEY)=')"
+          scripts/backup/ci/storage-download-check.sh "$API_URL" "$ANON_KEY" "$RUNNER_TEMP/backup/storage-manifest.tsv" "$TARGET_DB_URL"
 
       - name: Geri yüklenen veritabanında pgTAP testleri
         run: PGPASSWORD=postgres pg_prove -h 127.0.0.1 -p 54422 -U postgres -d postgres supabase/tests/*.test.sql

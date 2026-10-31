@@ -32,6 +32,12 @@ psql "$target" -X -q -v ON_ERROR_STOP=1 -c 'select private.post_restore()' > /de
 psql "$target" -X -A -t -v ON_ERROR_STOP=1 -f "$here/row-counts.sql"  > "$dir/restored-row-counts.txt"
 psql "$target" -X -A -t -v ON_ERROR_STOP=1 -f "$here/security-state.sql" > "$dir/restored-security-state.txt"
 
+# Belge bilgileri (yol, boyut, SHA-256) yedekle aynı olmalı. Dosya içerikleri
+# veritabanında değildir; storage-restore.sh ile ayrıca geri yüklenip doğrulanır.
+if [ -f "$dir/storage-manifest.tsv" ]; then
+  psql "$target" -X -A -t -v ON_ERROR_STOP=1 -f "$here/storage-manifest.sql" > "$dir/restored-storage-manifest.tsv"
+fi
+
 status=0
 if diff -u "$dir/row-counts.txt" "$dir/restored-row-counts.txt"; then
   echo "Satır sayıları: $(wc -l < "$dir/row-counts.txt") tablo birebir aynı."
@@ -44,5 +50,13 @@ if diff -u "$dir/security-state.txt" "$dir/restored-security-state.txt"; then
 else
   echo "HATA: geri yüklenen güvenlik durumu yedekle uyuşmuyor." >&2
   status=1
+fi
+if [ -f "$dir/storage-manifest.tsv" ]; then
+  if diff -u "$dir/storage-manifest.tsv" "$dir/restored-storage-manifest.tsv"; then
+    echo "Belge bilgileri: $(grep -c . "$dir/storage-manifest.tsv" || true) dosyanın yolu, boyutu ve SHA-256'sı yedekle aynı."
+  else
+    echo "HATA: geri yüklenen belge bilgileri yedekle uyuşmuyor." >&2
+    status=1
+  fi
 fi
 exit $status
