@@ -121,6 +121,33 @@ işlenmiş (brüt 312.000, teminat 31.200, avans mahsubu 50.000, ödemeye uygun
 - [ ] Aynı ödemeyi çift dokunuşla iki kez gönderin: tek ödeme oluşur.
 - [ ] Sözleşme bedeli girilmeden onaylanan sözleşmede "Avans ver" yerine "Sözleşme bedeli tanımlı olmadığı için avans verilemez" yazar; bedelli sözleşmede avans sayfası kalan tavanı gösterir, aşan tutar Kaydet'i kapatır.
 
+### Aşama 5: gider, gelir ve borç
+
+Seed verisi (tutarlar hayalidir): `GD-000001` demir faturası 240.000 ₺ (cari
+bağlantılı, 100.000 ödenmiş, vadesi geçmiş), `GD-000002` akaryakıt 4.250,50 ₺
+(Kürşat kartıyla peşin), `GD-000003` ofis gideri 1.830 ₺ (onay bekliyor),
+`GD-000004` nakliye 12.500 ₺ (vadesi 5 gün sonra), `GL-000005` daire ara ödemesi
+750.000 ₺ (250.000 tahsil edilmiş).
+
+- [ ] `muhasebe@example.test` → Ana ekran → Giderler: dört gider; demir satırında "Vadesi geçti · Kısmen ödendi" ve "Kalan 140.000,00 ₺"; akaryakıt "Tamamen ödendi"; ofis gideri "Onay bekliyor".
+- [ ] Üstteki hızlı filtreler (Onay bekleyen, Ödenmemiş, Vadesi geçmiş…) ve arama (açıklama, fatura no "DMR", cari adı, kategori) doğru sonuç veriyor.
+- [ ] + ile yeni gider: yalnızca tutar, kategori, açıklama ve proje doldurulup kaydedilebiliyor; "Kaydet ve yeni" formu temizleyip kategori ve projeyi koruyor. Kayıt "Onay bekliyor" olarak listede.
+- [ ] Yeni gider → "Vade, cari, fatura ve döviz": USD seçince kur alanı çıkıyor, kur boşken Kaydet kapalı; vade belge tarihinden önce seçilemiyor.
+- [ ] Demir faturası detayı: Gider tutarı, Ödenen, Kalan borç ayrı satırlarda; ödeme geçmişinde 100.000 ₺ "Şirket ödemesi (demo)".
+- [ ] "Ödeme kaydet" → 40.000 → kaynak → Kaydet: durum "Kısmen ödendi", kalan 100.000; kalanı aşan tutar Kaydet'i kapatıyor. Hızlı çift dokunuş tek ödeme oluşturuyor.
+- [ ] Ödeme satırını sola kaydırıp "İptal": gerekçe en az 10 karakter; iptal edilen ödeme listede "İptal" etiketiyle kalıyor, kalan geri artıyor.
+- [ ] Muhasebe ofis giderinde "Onayla"yı **görmüyor**; `yonetici@example.test` görüyor ve onay sorusunda tutar ve "borç olarak kaydedilir" yazıyor.
+- [ ] Yönetici → onaylı ve ödemesiz nakliye gideri → "Düzelt": eski belge İptal, yeni taslak açılıyor ve "Yerine açılan belge" bağlantısı çıkıyor.
+- [ ] Ana ekran → Bekleyen borçlar: "Vadesi geçmiş", "7 gün içinde", "Daha sonra" grupları ve her grubun kalan toplamı; tamamen ödenmiş akaryakıt listede yok.
+- [ ] Ana ekran → Gelir ve tahsilat → GL-000005: "Kısmen tahsil edildi", kalan alacak 500.000; tahsilat kaydı çalışıyor.
+- [ ] Cari hesaplar → Örnek Demir Tedarikçisi: gider alacağı bir kez, her ödeme ayrı hareket; akaryakıt (carisiz) hiçbir caride görünmüyor, Kürşat adına borç yok.
+- [ ] Raporlar → Gider → Kategori / Ay / Ödeme kaynağı / Tedarikçi: tahakkuk, ödenen, kalan ve vadesi geçmiş ayrı; "Ödeme kaynağı"nda Kürşat kartı satırı.
+- [ ] Raporlar → Proje maliyeti → Sivas: gider, hakediş ve gelir ayrı bölümler; "Verilen avans" ayrı satır ve "ödeme değildir" açıklaması; hakediş tutarları gider satırlarına eklenmemiş.
+- [ ] Giderler → filtre menüsü → "Kategorileri yönet": yeni kategori ekleme, pasif yapma; pasif kategori yeni gider formunda çıkmıyor.
+- [ ] `sef@example.test` → Ana ekran: yalnızca "Giderler" görünür ("Bekleyen borçlar", "Gelir ve tahsilat", "Raporlar" görünmez). Listede muhasebenin girdiği giderler yok; "Peşin ödendi" + Kürşat kartı ile gider girebiliyor; kendi giderinde "Onayla" ve "Ödeme kaydet" yok.
+- [ ] Ana ekranda hiçbir para tutarı, kasa veya banka bakiyesi yok.
+- [ ] Gider listesi ve detayı koyu temada ve en büyük metin boyutunda okunaklı; VoiceOver durum rozetini ve kalan tutarı okuyor.
+
 ## 5. Otomatik testler
 
 ```bash

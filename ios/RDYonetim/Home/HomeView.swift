@@ -24,6 +24,11 @@ enum AppRoute: Hashable {
   case hakedis(Hakedis, Contract)
   case imalatProjects
   case imalat(Project)
+  case financeList(FinanceDocKind, projectId: UUID?)
+  case financeDocument(FinanceDocument)
+  case payables(FinanceDocKind)
+  case financeReports
+  case financeCategories
   case placeholder(AppModule)
 }
 
@@ -103,6 +108,11 @@ struct HomeView: View {
     case .hakedis(let hakedis, let contract): HakedisDetailView(hakedis: hakedis, contract: contract, app: app)
     case .imalatProjects: ImalatProjectsView(app: app)
     case .imalat(let project): ImalatView(project: project, app: app)
+    case .financeList(let kind, let projectId): FinanceDocumentListView(kind: kind, projectId: projectId, app: app)
+    case .financeDocument(let document): FinanceDocumentDetailView(document: document, app: app)
+    case .payables(let kind): PayablesView(kind: kind, app: app)
+    case .financeReports: FinanceReportView(app: app)
+    case .financeCategories: FinanceCategoryListView(app: app)
     case .placeholder(let module): ModulePlaceholderView(module: module)
     }
   }
@@ -235,6 +245,10 @@ struct HomeView: View {
     case .imalat: .imalatProjects
     case .taseronSozlesmeleri: .contracts(projectId: nil)
     case .hakedis: .hakedisList
+    case .giderler: .financeList(.gider, projectId: nil)
+    case .borclar: .payables(.gider)
+    case .gelirler: .financeList(.gelir, projectId: nil)
+    case .raporlar: .financeReports
     default: .placeholder(module)
     }
   }

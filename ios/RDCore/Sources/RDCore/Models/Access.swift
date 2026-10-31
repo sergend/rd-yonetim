@@ -43,6 +43,17 @@ public enum PermissionKey: String, Sendable, CaseIterable {
   case teminatRelease = "teminat.release"
   case odemeWrite = "odeme.write"
   case vergiManage = "vergi.manage"
+  // Aşama 5: gider, gelir, borç/alacak
+  case giderRead = "gider.read"
+  case giderWrite = "gider.write"
+  case giderApprove = "gider.approve"
+  case giderPay = "gider.pay"
+  case gelirRead = "gelir.read"
+  case gelirWrite = "gelir.write"
+  case gelirApprove = "gelir.approve"
+  case gelirCollect = "gelir.collect"
+  case finansRaporRead = "finans_rapor.read"
+  case finansKategoriManage = "finans_kategori.manage"
 }
 
 /// my_permissions() RPC satırı: project_id boşsa genel izin.

@@ -162,3 +162,30 @@ dosyasındadır:
 - Ana sayfada kasa, banka veya toplam finansal bakiye kartı **yoktur**; tutarlar
   yalnızca sözleşme ve hakediş ekranlarında, `hakedis.read` izniyle görünür.
 - Logo bu aşamada değişmedi.
+
+## Aşama 5 ekranları (gider, gelir ve borç)
+
+Yeni tasarım bileşeni eklenmedi; ekranlar `RDYonetim/Finans/` altında mevcut
+`RDRow`, `RDInfoRow`, `RDStatusBadge`, `RDErrorBanner`, `RDFormMessage`,
+`rdContentState`, `MoneyRow`, `ReasonSheet` ve `ExchangeRateField` ile yapıldı.
+
+- **Hızlı giriş formu:** en üstte büyük tutar alanı (klavye açık gelir),
+  kategori, açıklama ve tarih; ardından proje / şirket geneli ve "Peşin ödendi".
+  Vade, cari, fatura no, belge referansı, döviz ve not kapalı bir
+  "ayrıntılar" grubundadır. "Kaydet ve yeni" art arda fiş girişi içindir.
+- **Durum rozeti (`FinanceStateBadge`):** Onay bekliyor / Ödenmedi / Kısmen ödendi
+  / Tamamen ödendi metinle yazılır; vadesi geçmişse "Vadesi geçti · …" ve
+  tehlike tonu. Renk tek başına anlam taşımaz. Tonlar `RDDesign/Tones.swift`
+  (`FinanceDocStatus.tone`, `FinanceSettlementState.tone`).
+- **Liste:** üstte yatay kaydırılan durum filtresi (en az 44 pt dokunma alanı),
+  arama, dönem ve kategori menüsü. Satırda tutar sağda `monospacedDigit`; iptal
+  edilen belge üstü çizili ve gri.
+- **Detay:** "Gider tutarı", "Ödenen", "Kalan borç" ayrı `MoneyRow`; ödeme
+  geçmişi kaydırarak iptal; onay bir onay sorusuyla yapılır.
+- **Bekleyen borçlar:** vadesi geçmiş / 7 gün içinde / daha sonra grupları ve
+  grup başlığında yalnızca kalan tutar toplamı (kasa bakiyesi değildir).
+- **Raporlar:** tahakkuk, ödenen, kalan ve vadesi geçmiş ayrı satırlar; proje
+  maliyetinde gider, hakediş ve gelir ayrı bölümler ve birbirine eklenmez.
+- Ana sayfada kasa, banka, başlangıç parası veya toplam mevcut para kartı **yoktur**.
+- Logo bu aşamada değişmedi.
+

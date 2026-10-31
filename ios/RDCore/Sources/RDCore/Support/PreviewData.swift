@@ -106,6 +106,62 @@ public enum PreviewData {
     _ = try? await backend.saveWorkQuantity(w3)
   }
 
+  // Gider, gelir ve borç (Aşama 5). Kategoriler sunucuda veridir; buradakiler
+  // yalnızca önizleme örneğidir. Tutarlar hayalidir.
+  public static let demirKategori = FinanceCategory(kind: .gider, name: "Demir", sortOrder: 10)
+  public static let akaryakitKategori = FinanceCategory(kind: .gider, name: "Akaryakıt", sortOrder: 70)
+  public static let nakliyeKategori = FinanceCategory(kind: .gider, name: "Nakliye", sortOrder: 60)
+  public static let ofisKategori = FinanceCategory(kind: .gider, name: "Ofis gideri", sortOrder: 100)
+  public static let satisKategori = FinanceCategory(kind: .gelir, name: "Satış geliri", sortOrder: 10)
+  public static let kartKaynagi = PaymentSource(name: "Kürşat kartı (örnek)", kind: .kart)
+  public static let musteri = CariAccount(code: "DEMO-C03", title: "Örnek Daire Alıcısı", type: .musteri, isDemo: true)
+
+  /// Gider/gelir önizlemesi: kısmen ödenmiş cari bağlantılı fatura, peşin
+  /// kartla ödenmiş akaryakıt, onay bekleyen ofis gideri, vadesi yaklaşan
+  /// nakliye ve kısmen tahsil edilmiş satış geliri.
+  public static func financeBackend() async -> InMemoryBackend {
+    let backend = await contractsBackend()
+    await backend.seed(accounts: [musteri])
+    await seedFinance(backend)
+    return backend
+  }
+
+  static func seedFinance(_ backend: InMemoryBackend) async {
+    await backend.seedFinance(categories: [demirKategori, akaryakitKategori, nakliyeKategori, ofisKategori, satisKategori],
+                              paymentSources: [odemeKaynagi, kartKaynagi])
+    let today = CalendarDate.today()
+    let demir = UUID()
+    _ = try? await backend.saveFinanceDocument(id: demir, draft: FinanceDocumentDraft(
+      kind: .gider, scope: .project(sivas.id), categoryId: demirKategori.id, description: "Ø12 demir 18 ton (örnek)",
+      amount: 342_000, documentDate: today.adding(days: -25), dueDate: today.adding(days: -5),
+      cariAccountId: tedarikci.id, invoiceNo: "DMR-0001"), expectedVersion: nil)
+    _ = try? await backend.approveFinanceDocument(id: demir, expectedVersion: nil, settlementId: nil)
+    _ = try? await backend.recordFinanceSettlement(FinanceSettlementDraft(
+      documentId: demir, amount: 100_000, paymentSourceId: odemeKaynagi.id, settlementDate: today.adding(days: -10)))
+    let yakit = UUID()
+    _ = try? await backend.saveFinanceDocument(id: yakit, draft: FinanceDocumentDraft(
+      kind: .gider, scope: .project(sivas.id), categoryId: akaryakitKategori.id, description: "İş makinesi motorin (örnek)",
+      amount: 4_250.50, documentDate: today.adding(days: -3), reportedSettled: true, reportedSourceId: kartKaynagi.id,
+      reportedBy: "Kürşat (örnek)"), expectedVersion: nil)
+    _ = try? await backend.approveFinanceDocument(id: yakit, expectedVersion: nil, settlementId: nil)
+    _ = try? await backend.saveFinanceDocument(id: UUID(), draft: FinanceDocumentDraft(
+      kind: .gider, scope: .costCenter(office.id), categoryId: ofisKategori.id, description: "Kırtasiye (örnek)",
+      amount: 1_830, documentDate: today.adding(days: -1)), expectedVersion: nil)
+    let nakliye = UUID()
+    _ = try? await backend.saveFinanceDocument(id: nakliye, draft: FinanceDocumentDraft(
+      kind: .gider, scope: .project(sivas.id), categoryId: nakliyeKategori.id, description: "Kalıp malzemesi nakliyesi (örnek)",
+      amount: 12_500, documentDate: today.adding(days: -2), dueDate: today.adding(days: 5)), expectedVersion: nil)
+    _ = try? await backend.approveFinanceDocument(id: nakliye, expectedVersion: nil, settlementId: nil)
+    let satis = UUID()
+    _ = try? await backend.saveFinanceDocument(id: satis, draft: FinanceDocumentDraft(
+      kind: .gelir, scope: .project(sivas.id), categoryId: satisKategori.id, description: "A blok 5 nolu daire peşinatı (örnek)",
+      amount: 750_000, documentDate: today.adding(days: -20), dueDate: today.adding(days: 10), cariAccountId: musteri.id,
+      invoiceNo: "SAT-0001"), expectedVersion: nil)
+    _ = try? await backend.approveFinanceDocument(id: satis, expectedVersion: nil, settlementId: nil)
+    _ = try? await backend.recordFinanceSettlement(FinanceSettlementDraft(
+      documentId: satis, amount: 250_000, paymentSourceId: odemeKaynagi.id, settlementDate: today.adding(days: -15)))
+  }
+
   /// Bu ayın dünkü güne kadarki iş günleri (Pazar boş). Örnek: rapor, yarım
   /// gün ve fazla mesai; bir gün bilerek boş (henüz işlenmedi).
   static func seedPuantaj(_ backend: InMemoryBackend) async {
