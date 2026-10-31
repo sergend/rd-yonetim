@@ -7,8 +7,8 @@ import SwiftUI
   /// sunucuya bağlanmaz.
   @MainActor
   enum PreviewSupport {
-    static func app(grants: [PermissionGrant]? = nil) async -> AppModel {
-      let backend = await PreviewData.backend()
+    static func app(grants: [PermissionGrant]? = nil, contracts: Bool = false) async -> AppModel {
+      let backend = contracts ? await PreviewData.contractsBackend() : await PreviewData.backend()
       if let grants { await backend.set(grants: grants) }
       let app = AppModel(repositories: backend.repositories)
       await app.session.start()
@@ -27,6 +27,7 @@ import SwiftUI
 
   struct PreviewHost<Content: View>: View {
     var grants: [PermissionGrant]?
+    var contracts = false
     @ViewBuilder let content: (AppModel) -> Content
     @State private var app: AppModel?
 
@@ -35,7 +36,7 @@ import SwiftUI
         if let app { content(app).environment(app) } else { ProgressView() }
       }
       .tint(RDColor.brandText)
-      .task { app = await PreviewSupport.app(grants: grants) }
+      .task { app = await PreviewSupport.app(grants: grants, contracts: contracts) }
     }
   }
 
@@ -186,6 +187,66 @@ import SwiftUI
   #Preview("Puantaj · ay durumu · koyu") {
     PuantajPreviewHost { model in PuantajPeriodSheet(model: model) }
       .preferredColorScheme(.dark)
+  }
+
+  // MARK: Sözleşme ve hakediş (Aşama 4)
+
+  /// Örnek sözleşmenin ilk hakedişiyle detay ekranı.
+  struct HakedisPreviewHost: View {
+    @State private var app: AppModel?
+    @State private var hakedis: Hakedis?
+
+    var body: some View {
+      Group {
+        if let app, let hakedis {
+          NavigationStack { HakedisDetailView(hakedis: hakedis, contract: PreviewData.sozlesme, app: app) }
+            .environment(app)
+        } else {
+          ProgressView()
+        }
+      }
+      .tint(RDColor.brandText)
+      .task {
+        let app = await PreviewSupport.app(contracts: true)
+        hakedis = try? await app.repositories.contracts.hakedisList(contractId: PreviewData.sozlesme.id).first
+        self.app = app
+      }
+    }
+  }
+
+  #Preview("Sözleşmeler") {
+    PreviewHost(contracts: true) { app in NavigationStack { ContractListView(projectId: nil, app: app) } }
+  }
+
+  #Preview("Sözleşme detayı") {
+    PreviewHost(contracts: true) { app in NavigationStack { ContractDetailView(contract: PreviewData.sozlesme, app: app) } }
+  }
+
+  #Preview("Sözleşme detayı · koyu") {
+    PreviewHost(contracts: true) { app in NavigationStack { ContractDetailView(contract: PreviewData.sozlesme, app: app) } }
+      .preferredColorScheme(.dark)
+  }
+
+  #Preview("Yeni sözleşme") {
+    PreviewHost(contracts: true) { app in ContractFormLoader(app: app, projectId: PreviewData.sivas.id) { _ in } }
+  }
+
+  #Preview("Hakediş detayı") { HakedisPreviewHost() }
+
+  #Preview("Hakediş detayı · büyük yazı") { HakedisPreviewHost().dynamicTypeSize(.accessibility2) }
+
+  #Preview("Hakediş detayı · koyu") { HakedisPreviewHost().preferredColorScheme(.dark) }
+
+  #Preview("Hakedişler") {
+    PreviewHost(contracts: true) { app in NavigationStack { HakedisListView(app: app) } }
+  }
+
+  #Preview("İmalat · şantiye şefi") {
+    PreviewHost(grants: PreviewSupport.siteChiefGrants + ["imalat.read", "imalat.write"].map {
+      PermissionGrant(projectId: PreviewData.sivas.id, permissionKey: $0)
+    }, contracts: true) { app in
+      NavigationStack { ImalatView(project: PreviewData.sivas, app: app) }
+    }
   }
 
   #Preview("Yeni personel") {

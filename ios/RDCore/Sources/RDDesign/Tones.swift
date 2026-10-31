@@ -77,3 +77,35 @@ public extension PuantajPeriodStatus {
     }
   }
 }
+
+public extension ContractStatus {
+  var tone: StatusTone {
+    switch self {
+    case .taslak: .info
+    case .aktif: .success
+    case .kapandi: .neutral
+    case .iptal: .danger
+    }
+  }
+}
+
+public extension HakedisStatus {
+  var tone: StatusTone {
+    switch self {
+    case .taslak: .neutral
+    case .incelemede: .warning
+    case .onaylandi: .success
+    case .iptal: .danger
+    }
+  }
+}
+
+public extension WorkQuantityStatus {
+  var tone: StatusTone {
+    switch self {
+    case .taslak: .warning
+    case .onaylandi: .success
+    case .iptal: .danger
+    }
+  }
+}
