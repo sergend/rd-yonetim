@@ -15,7 +15,8 @@ Mimari: [Teknik Mimari Önerisi](https://claude.ai/artifact/6gdNhhjhSuDdodf55R3d
 | 1 | iOS iskeleti, giriş, ana ekran, proje, iş takibi ve cari | Tamamlandı |
 | 1.5 | RD Projeler kurumsal kimlik ve iOS tasarım sistemi | Tamamlandı |
 | 2 | Taşeron, personel, ekip ve proje görevlendirmeleri | Tamamlandı |
-| 3 | Puantaj: aylık tablo, hızlı giriş, özet, onay ve kilit (finansal yükümlülük üretmez) | İncelemede |
+| 3 | Puantaj: aylık tablo, hızlı giriş, özet, onay ve kilit (finansal yükümlülük üretmez) | Tamamlandı |
+| 4 | Taşeron sözleşmesi, imalat (metraj), hakediş, teminat, cari deftere işleme ve ödeme | İncelemede |
 
 ## Yedekleme durumu (önemli)
 

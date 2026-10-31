@@ -1,4 +1,4 @@
-# Mimari özet (Aşama 0–3)
+# Mimari özet (Aşama 0–4)
 
 Tam doküman: [Teknik Mimari Önerisi](https://claude.ai/artifact/6gdNhhjhSuDdodf55R3dn9).
 Bu dosya yalnızca veritabanında şu an uygulanmış olanı özetler.
@@ -111,6 +111,51 @@ göre menüyü sadeleştirir; asıl koruma RLS'tir.
 | `puantaj.review` | ✓ | ✓ | | ✓ | | |
 | `puantaj.approve` | ✓ | | | ✓ | | |
 | `puantaj.unlock` | ✓ | | | | | |
+
+## Sözleşme ve hakediş (Aşama 4)
+
+- `contracts` (taşeron + proje + taşeronun mevcut carisi), `contract_versions`
+  (revizyon; onaylı olan değişmez), `contract_items` (birim fiyat / günlük /
+  götürü; revizyonlar arası sabit `item_key`), `contract_version_taxes`.
+- `work_quantities`: birim fiyatlı kaleme imalat (metraj); fiyat içermez.
+- `hakedis` + `hakedis_lines` (önceki / bu dönem / kümülatif) +
+  `hakedis_adjustments` (KDV, stopaj, teminat, avans mahsubu, diğer kesinti;
+  matrah ve oranıyla) + kaynak bağlantıları `hakedis_quantity_links` ve
+  `hakedis_puantaj_links` (etkin bağlantıda benzersiz).
+- `teminat_releases`, `finance_payments` (ödeme/avans; `payment_sources` yalnızca
+  bilgi), `tax_rules` (kullanıcı tarafından doğrulanan, tarihli oranlar),
+  `finance_events` (değiştirilemez geçmiş).
+- Cari: deftere işleme `hakedis` alacak + `kesinti` borç hareketleri;
+  teminat iadesi yeni `teminat_iadesi` türünde alacak; ödeme/avans borç.
+  Kaynak belge benzersizliği tekrar kaydı engeller; iptal ters kayıtla.
+- Yazma yalnızca RPC'lerle (`save_contract`, `contract_transition`,
+  `save_work_quantity`, `approve_work_quantities`, `create_hakedis`,
+  `set_hakedis_progress`, `set_hakedis_deduction`, `override_hakedis_limit`,
+  `hakedis_transition`, `revise_hakedis`, `post_hakedis`, `release_teminat`,
+  `record_finance_payment` ve iptalleri). Özet: `contract_finance_summary`,
+  `v_hakedis_payment_status`.
+- Hesap kuralları: [hakedis-hesaplama.md](hakedis-hesaplama.md). Kararlar:
+  [karar 0005](decisions/0005-asama-4-kararlari.md).
+
+| İzin | Yönetici | Muhasebe | Proje müdürü (proje) | Şantiye şefi (proje) | Diğer roller |
+| --- | --- | --- | --- | --- | --- |
+| `sozlesme.read` | ✓ | ✓ | ✓ | | |
+| `sozlesme.write` | ✓ | ✓ | | | |
+| `sozlesme.approve` | ✓ | | | | |
+| `imalat.read` | ✓ | ✓ | ✓ | ✓ | |
+| `imalat.write` | ✓ | | ✓ | ✓ | |
+| `imalat.approve` | ✓ | | ✓ | | |
+| `hakedis.read` | ✓ | ✓ | ✓ | | |
+| `hakedis.prepare` | ✓ | ✓ | ✓ | | |
+| `hakedis.approve` | ✓ | | | | |
+| `hakedis.limit_override` | ✓ | | | | |
+| `hakedis.post` | ✓ | ✓ | | | |
+| `teminat.release` | ✓ | | | | |
+| `odeme.write` | ✓ | ✓ | | | |
+| `vergi.manage` | ✓ | ✓ | | | |
+
+Şantiye şefi puantaj ve imalat girer, ancak sözleşme fiyatlarını ve hakediş
+tutarlarını göremez. Şablonlar yönetici tarafından değiştirilebilir.
 
 ## Etkin izin
 
