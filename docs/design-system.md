@@ -138,3 +138,27 @@ Ortak parçalar `RDYonetim/Puantaj/PuantajShared.swift` dosyasındadır:
   (dokunsal geri bildirimle). Fazla mesai ve not ayrı açılır bölümdedir.
 - **Toplu işlem:** her zaman önizleme ve onay; korunan kayıtlar ayrı listelenir.
 - **Özet:** yalnızca gün ve saat sayıları; para yok, kategoriler birleştirilmez.
+
+## Aşama 4 ekranları (sözleşme ve hakediş)
+
+Yeni bir tasarım sistemi eklenmedi; ekranlar mevcut `RDRow`, `RDInfoRow`,
+`RDStatusBadge`, `RDErrorBanner`, `RDFormMessage`, `rdContentState` ve
+`StatusTone` ile yapıldı. Ortak parçalar `RDYonetim/Hakedis/HakedisShared.swift`
+dosyasındadır:
+
+- **`MoneyRow`:** etiket + tutar; tutar `monospacedDigit`, eksi işaretli
+  kesintiler ve vurgulu toplam satırı. Tutar `Money` ile biçimlenir (₺, iki
+  ondalık), `Double` kullanılmaz.
+- **`HakedisBreakdownSections`:** üç ayrı bölüm: **Hak edilen** (brüt, KDV),
+  **Kesilen** (stopaj, diğer kesinti, teminat, avans mahsubu) ve **Ödeme**
+  (ödemeye uygun, gerçekleşen ödeme, kalan). Kavramlar hiçbir zaman tek satırda
+  birleştirilmez; "ödemeye uygun" ile "ödendi" ayrı görünür.
+- **`ReasonSheet`, `PaymentSheet`, `FinanceEventsSection`:** gerekçe isteyen
+  işlemler (iade, iptal, revizyon), ödeme kaydı ve değiştirilemez geçmiş.
+- **Durum rozetleri:** sözleşme, revizyon, imalat ve hakediş durumları
+  `StatusTone` üzerinden metinli rozettir; renk tek başına anlam taşımaz.
+- **İmalat (metraj) ekranı** fiyat ve tutar göstermez; şantiye şefi yalnızca
+  miktar görür ve girer.
+- Ana sayfada kasa, banka veya toplam finansal bakiye kartı **yoktur**; tutarlar
+  yalnızca sözleşme ve hakediş ekranlarında, `hakedis.read` izniyle görünür.
+- Logo bu aşamada değişmedi.

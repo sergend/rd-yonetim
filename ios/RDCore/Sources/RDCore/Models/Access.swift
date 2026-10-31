@@ -27,6 +27,22 @@ public enum PermissionKey: String, Sendable, CaseIterable {
   case puantajReview = "puantaj.review"
   case puantajApprove = "puantaj.approve"
   case puantajUnlock = "puantaj.unlock"
+  // Aşama 4: sözleşme, imalat, hakediş ve ödeme ayrı izinlerdir. Puantaj
+  // izni finansal tutarlara erişim vermez.
+  case sozlesmeRead = "sozlesme.read"
+  case sozlesmeWrite = "sozlesme.write"
+  case sozlesmeApprove = "sozlesme.approve"
+  case imalatRead = "imalat.read"
+  case imalatWrite = "imalat.write"
+  case imalatApprove = "imalat.approve"
+  case hakedisRead = "hakedis.read"
+  case hakedisPrepare = "hakedis.prepare"
+  case hakedisApprove = "hakedis.approve"
+  case hakedisLimitOverride = "hakedis.limit_override"
+  case hakedisPost = "hakedis.post"
+  case teminatRelease = "teminat.release"
+  case odemeWrite = "odeme.write"
+  case vergiManage = "vergi.manage"
 }
 
 /// my_permissions() RPC satırı: project_id boşsa genel izin.

@@ -190,5 +190,55 @@ begin
    where p.is_demo
      and p.full_name in ('Deneme Şantiye Teknikeri', 'Deneme Kalıp Ustası', 'Deneme Kalıp Kalfası', 'Deneme Demir Ustası')
      and extract(isodow from d) <> 7;
+
+  -- Sözleşme ve hakediş (Aşama 4): Sivas projesinde birim fiyatlı demo
+  -- sözleşme. Eylül hakedişi onaylı, deftere işlenmiş ve kısmen ödenmiş; Ekim
+  -- hakedişi incelemede. Vergi kuralı eklenmez: oranlar kullanıcı tarafından
+  -- doğrulanarak girilir. Tutarlar hayalidir.
+  perform set_config('request.jwt.claims', json_build_object('sub', v_admin, 'role', 'authenticated')::text, true);
+
+  perform public.save_payment_source('00000000-0000-4000-8000-0000000000f1', 'Şirket ödemesi (demo)', 'sirket');
+  perform public.save_payment_source('00000000-0000-4000-8000-0000000000f2', 'Örnek kredi kartı (demo)', 'kart');
+
+  perform public.save_contract(
+    '00000000-0000-4000-8000-0000000000c1', v_sivas,
+    (select id from public.subcontractors where name = 'Örnek Kaba İnşaat Taşeronu'),
+    'DEMO-S-001', 'Kaba inşaat kalıp ve beton işçiliği (demo)',
+    jsonb_build_array(
+      jsonb_build_object('item_key', '00000000-0000-4000-8000-0000000000a1', 'method', 'birim_fiyat',
+                         'description', 'Temel ve perde kalıbı', 'unit', 'm2', 'quantity', 2400, 'unit_price', 450),
+      jsonb_build_object('item_key', '00000000-0000-4000-8000-0000000000a2', 'method', 'birim_fiyat',
+                         'description', 'Beton döküm işçiliği', 'unit', 'm3', 'quantity', 900, 'unit_price', 280)),
+    p_signed_date => '2026-08-01', p_scope => 'A ve B blok kaba inşaat işçiliği (demo)',
+    p_start_date => '2026-08-01', p_total_amount => 1332000, p_retention_rate => 10,
+    p_payment_terms => 'Onaydan sonra 15 gün içinde (demo)');
+  perform public.contract_transition('00000000-0000-4000-8000-0000000000c1', 'onayla');
+
+  perform public.save_work_quantity('00000000-0000-4000-8000-0000000000b1', '00000000-0000-4000-8000-0000000000c1',
+    '00000000-0000-4000-8000-0000000000a1', '2026-09-20', 600, 'A blok temel', 'Eylül metrajı (demo)');
+  perform public.save_work_quantity('00000000-0000-4000-8000-0000000000b2', '00000000-0000-4000-8000-0000000000c1',
+    '00000000-0000-4000-8000-0000000000a2', '2026-09-25', 150, 'A blok temel', null);
+  perform public.approve_work_quantities(array['00000000-0000-4000-8000-0000000000b1',
+                                               '00000000-0000-4000-8000-0000000000b2']::uuid[]);
+
+  perform public.create_hakedis('00000000-0000-4000-8000-0000000000e2', '00000000-0000-4000-8000-0000000000c1',
+                                '2026-09-01', '2026-09-30', 'Eylül hakedişi (demo)');
+  perform public.set_hakedis_deduction('00000000-0000-4000-8000-0000000000e2', 'avans_mahsubu', 50000,
+                                       'İş başlangıç avansının yarısı');
+  perform public.hakedis_transition('00000000-0000-4000-8000-0000000000e2', 'gonder');
+  perform public.hakedis_transition('00000000-0000-4000-8000-0000000000e2', 'onayla');
+  perform public.post_hakedis('00000000-0000-4000-8000-0000000000e2', '2026-10-05');
+  perform public.record_finance_payment('00000000-0000-4000-8000-0000000000f3', '00000000-0000-4000-8000-0000000000c1',
+    'odeme', 150000, '00000000-0000-4000-8000-0000000000f1', '2026-10-15',
+    p_hakedis_id => '00000000-0000-4000-8000-0000000000e2', p_description => 'Eylül hakedişi kısmi ödeme (demo)');
+
+  perform public.save_work_quantity('00000000-0000-4000-8000-0000000000b3', '00000000-0000-4000-8000-0000000000c1',
+    '00000000-0000-4000-8000-0000000000a1', '2026-10-20', 400, 'A blok perde', null);
+  perform public.approve_work_quantities(array['00000000-0000-4000-8000-0000000000b3']::uuid[]);
+  perform public.create_hakedis('00000000-0000-4000-8000-0000000000e3', '00000000-0000-4000-8000-0000000000c1',
+                                '2026-10-01', '2026-10-31', 'Ekim hakedişi (demo)');
+  perform public.hakedis_transition('00000000-0000-4000-8000-0000000000e3', 'gonder');
+
+  perform set_config('request.jwt.claims', '', true);
 end;
 $$;

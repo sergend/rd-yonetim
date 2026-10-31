@@ -78,7 +78,8 @@ final class HomeViewModelTests: XCTestCase {
     XCTAssertEqual(vm.openTaskCount(projectId: PreviewData.sivas.id), 1)
     XCTAssertTrue(vm.availableModules.contains(.cari))
     XCTAssertTrue(vm.availableModules.contains(.puantaj))
-    XCTAssertTrue(vm.upcomingModules.contains(.hakedis))
+    XCTAssertTrue(vm.availableModules.contains(.hakedis))
+    XCTAssertTrue(vm.upcomingModules.contains(.giderler))
     XCTAssertFalse(vm.upcomingModules.contains { $0.isAvailable })
   }
 

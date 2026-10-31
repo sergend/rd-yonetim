@@ -18,6 +18,12 @@ enum AppRoute: Hashable {
   case projectWorkforce(Project)
   case puantajProjects
   case puantaj(Project)
+  case contracts(projectId: UUID?)
+  case contract(Contract)
+  case hakedisList
+  case hakedis(Hakedis, Contract)
+  case imalatProjects
+  case imalat(Project)
   case placeholder(AppModule)
 }
 
@@ -91,6 +97,12 @@ struct HomeView: View {
     case .projectWorkforce(let project): ProjectWorkforceView(project: project, app: app)
     case .puantajProjects: PuantajProjectsView(app: app)
     case .puantaj(let project): PuantajView(project: project, app: app)
+    case .contracts(let projectId): ContractListView(projectId: projectId, app: app)
+    case .contract(let contract): ContractDetailView(contract: contract, app: app)
+    case .hakedisList: HakedisListView(app: app)
+    case .hakedis(let hakedis, let contract): HakedisDetailView(hakedis: hakedis, contract: contract, app: app)
+    case .imalatProjects: ImalatProjectsView(app: app)
+    case .imalat(let project): ImalatView(project: project, app: app)
     case .placeholder(let module): ModulePlaceholderView(module: module)
     }
   }
@@ -220,6 +232,9 @@ struct HomeView: View {
     case .cari: .cariList(projectId: nil)
     case .genelGider: .generalExpenses
     case .puantaj: .puantajProjects
+    case .imalat: .imalatProjects
+    case .taseronSozlesmeleri: .contracts(projectId: nil)
+    case .hakedis: .hakedisList
     default: .placeholder(module)
     }
   }

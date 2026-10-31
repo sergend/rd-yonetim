@@ -4,7 +4,7 @@ import Foundation
 /// gösterilir ve veri girişi sunmaz.
 public enum AppModule: String, CaseIterable, Identifiable, Sendable {
   case projeler, isTakibi, taseronlar, personel, ekipler, cari, genelGider
-  case puantaj, taseronSozlesmeleri, hakedis, giderler, daireler, raporlar, kullanicilar
+  case puantaj, imalat, taseronSozlesmeleri, hakedis, giderler, daireler, raporlar, kullanicilar
 
   public var id: String { rawValue }
 
@@ -18,6 +18,7 @@ public enum AppModule: String, CaseIterable, Identifiable, Sendable {
     case .cari: "Cari hesaplar"
     case .genelGider: "Şirket genel giderleri"
     case .puantaj: "Puantaj"
+    case .imalat: "İmalat (metraj)"
     case .taseronSozlesmeleri: "Taşeron sözleşmeleri"
     case .hakedis: "Hakediş"
     case .giderler: "Proje giderleri"
@@ -38,6 +39,7 @@ public enum AppModule: String, CaseIterable, Identifiable, Sendable {
     case .cari: "person.2.crop.square.stack"
     case .genelGider: "building.columns"
     case .puantaj: "calendar.badge.clock"
+    case .imalat: "ruler"
     case .taseronSozlesmeleri: "doc.text"
     case .hakedis: "doc.badge.gearshape"
     case .giderler: "cart"
@@ -49,7 +51,8 @@ public enum AppModule: String, CaseIterable, Identifiable, Sendable {
 
   public var isAvailable: Bool {
     switch self {
-    case .projeler, .isTakibi, .taseronlar, .personel, .ekipler, .puantaj, .cari, .genelGider: true
+    case .projeler, .isTakibi, .taseronlar, .personel, .ekipler, .puantaj, .cari, .genelGider,
+         .imalat, .taseronSozlesmeleri, .hakedis: true
     default: false
     }
   }
@@ -61,7 +64,10 @@ public enum AppModule: String, CaseIterable, Identifiable, Sendable {
     case .isTakibi: .isRead
     case .taseronlar: .taseronRead
     case .personel, .ekipler: .personelRead
-    case .cari, .taseronSozlesmeleri, .hakedis: .cariRead
+    case .cari: .cariRead
+    case .taseronSozlesmeleri: .sozlesmeRead
+    case .hakedis: .hakedisRead
+    case .imalat: .imalatRead
     case .genelGider, .giderler: .cariHareketRead
     case .puantaj: .puantajRead
     case .daireler: .projeRead

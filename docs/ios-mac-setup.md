@@ -99,6 +99,28 @@ puantaj içerir (Kalfa 7-8'inde raporlu, Demir Ustası 14'ünde yarım gün, Ust
 - [ ] Koyu tema ve en büyük metin boyutunda tablo ve gün görünümü okunaklı; VoiceOver hücreyi "ad, tarih: durum" olarak okur.
 - [ ] Cari ekranlarında puantaj nedeniyle yeni hareket oluşmadığını kontrol edin.
 
+### Aşama 4: sözleşme ve hakediş
+
+Seed verisi Sivas projesinde `DEMO-S-001` sözleşmesini içerir: kalıp 2.400 m² ×
+450 ₺, beton 900 m³ × 280 ₺, teminat %10. Eylül hakedişi onaylı ve deftere
+işlenmiş (brüt 312.000, teminat 31.200, avans mahsubu 50.000, ödemeye uygun
+230.800, ödenen 150.000, kalan 80.800); Ekim hakedişi incelemede.
+
+- [ ] `muhasebe@example.test` → Ana ekran → Taşeron sözleşmeleri → DEMO-S-001: finans özetinde brüt, kesilen teminat, ödemeye uygun, gerçekleşen ödeme ve kalan **ayrı satırlarda**; hiçbir satır "ödendi" diye toplanmıyor.
+- [ ] 1 nolu hakediş: "Hak edilen", "Kesilen", "Ödeme" bölümleri ayrı; ödeme durumu "Kısmen ödendi", kalan 80.800,00 ₺.
+- [ ] "Ödeme kaydet" → "Kalanın tamamı" → kaynak seçin → kaydedin: durum "Ödendi"; kalanı aşan tutar Kaydet'i kapatır.
+- [ ] 2 nolu (incelemede) hakedişte muhasebe "Onayla"yı görmez; `yonetici@example.test` görür. Onay onay sorusu ile yapılır, ardından "Cari deftere işle" ayrı adımdır.
+- [ ] Cari hesaplar → Örnek Kaba İnşaat Taşeronu: hakediş alacağı ve teminat kesintisi borcu ayrı hareketler; teminat iadesi yeni "Teminat iadesi" türüyle görünür.
+- [ ] Sözleşme → "Teminat serbest bırak": biriken tutardan fazlası girilemez; gerekçe en az 10 karakter. İade satırı "Ödenmedi" gösterir; sola kaydırıp "Öde" ile ödeme ayrıca kaydedilir.
+- [ ] Sözleşme → "Revizyon aç" → fiyatı değiştirip onaylayın: eski hakedişlerin tutarı değişmez.
+- [ ] Yeni sözleşme formu: yalnızca cari kartı bağlı taşeronlar listelenir; birim fiyat / günlük / götürü kalemler aynı sözleşmeye eklenebilir; %5/10/15/20 veya başka teminat oranı.
+- [ ] `sef@example.test` → Ana ekran: "Taşeron sözleşmeleri" ve "Hakediş" modülleri **görünmez**; "İmalat (metraj)" görünür. Sivas → kalemler fiyatsız; miktar girilir, "Tümünü onayla" görünmez.
+- [ ] Ana ekranda hiçbir para tutarı, kasa veya banka bakiyesi yok.
+- [ ] Hakediş detayı koyu temada ve en büyük metin boyutunda okunaklı; VoiceOver tutar satırlarını "eklenir/düşülür" ile okur.
+- [ ] USD sözleşme açın (para birimi USD): "Cari deftere işle" kur sorar; kur boşken kaydedilemez. Ödeme ve teminat iadesi sayfalarında "Kur (1 USD = ? ₺)" alanı görünür, boşken Kaydet kapalıdır; TL sözleşmede bu alan görünmez.
+- [ ] Aynı ödemeyi çift dokunuşla iki kez gönderin: tek ödeme oluşur.
+- [ ] Sözleşme bedeli girilmeden onaylanan sözleşmede "Avans ver" yerine "Sözleşme bedeli tanımlı olmadığı için avans verilemez" yazar; bedelli sözleşmede avans sayfası kalan tavanı gösterir, aşan tutar Kaydet'i kapatır.
+
 ## 5. Otomatik testler
 
 ```bash

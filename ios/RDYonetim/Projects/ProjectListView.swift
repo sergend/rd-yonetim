@@ -116,7 +116,8 @@ struct ProjectDetailView: View {
         .rdRowBackground()
       }
 
-      if app.access.can(.gorevlendirmeRead, in: project.id) || app.access.can(.puantajRead, in: project.id) {
+      if app.access.can(.gorevlendirmeRead, in: project.id) || app.access.can(.puantajRead, in: project.id)
+        || app.access.can(.imalatRead, in: project.id) {
         Section("Saha") {
           if app.access.can(.gorevlendirmeRead, in: project.id) {
             NavigationLink(value: AppRoute.projectWorkforce(project)) {
@@ -130,15 +131,29 @@ struct ProjectDetailView: View {
                     title: "Puantaj", subtitle: "Aylık tablo, günlük giriş ve onay")
             }
           }
+          if app.access.can(.imalatRead, in: project.id) {
+            NavigationLink(value: AppRoute.imalat(project)) {
+              RDRow(symbol: AppModule.imalat.symbol, symbolTint: RDColor.brandText,
+                    title: "İmalat (metraj)", subtitle: "Birim fiyatlı kalemlere miktar girişi (fiyatsız)")
+            }
+          }
         }
         .rdRowBackground()
       }
 
-      if model.canSeeCari {
+      if model.canSeeCari || app.access.can(.sozlesmeRead, in: project.id) {
         Section("Finans") {
-          NavigationLink(value: AppRoute.cariList(projectId: project.id)) {
-            RDRow(symbol: AppModule.cari.symbol, symbolTint: RDColor.brandText,
-                  title: "Proje carileri", subtitle: "Bakiyeler ve hareketler")
+          if app.access.can(.sozlesmeRead, in: project.id) {
+            NavigationLink(value: AppRoute.contracts(projectId: project.id)) {
+              RDRow(symbol: AppModule.taseronSozlesmeleri.symbol, symbolTint: RDColor.brandText,
+                    title: "Taşeron sözleşmeleri", subtitle: "Kalemler, hakediş, teminat ve ödemeler")
+            }
+          }
+          if model.canSeeCari {
+            NavigationLink(value: AppRoute.cariList(projectId: project.id)) {
+              RDRow(symbol: AppModule.cari.symbol, symbolTint: RDColor.brandText,
+                    title: "Proje carileri", subtitle: "Bakiyeler ve hareketler")
+            }
           }
         }
         .rdRowBackground()
