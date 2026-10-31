@@ -16,8 +16,9 @@ import SwiftUI
       return app
     }
 
-    /// Sivas projesinde şantiye şefi: finans görmez.
-    static let siteChiefGrants = ["proje.read", "proje.write", "is.read", "is.write"].map {
+    /// Sivas projesinde şantiye şefi: finans görmez; projesinin ekip ve personelini görür.
+    static let siteChiefGrants = ["proje.read", "proje.write", "is.read", "is.write", "taseron.read", "personel.read",
+                                  "personel_iletisim.read", "gorevlendirme.read", "gorevlendirme.write"].map {
       PermissionGrant(projectId: PreviewData.sivas.id, permissionKey: $0)
     }
   }
@@ -90,6 +91,49 @@ import SwiftUI
 
   #Preview("Genel giderler") {
     PreviewHost { app in NavigationStack { GeneralExpensesView(app: app) } }
+  }
+
+  #Preview("Taşeronlar") {
+    PreviewHost { app in NavigationStack { SubcontractorListView(app: app) } }
+  }
+
+  #Preview("Taşeron detayı") {
+    PreviewHost { app in NavigationStack { SubcontractorDetailView(subcontractor: PreviewData.kabaTaseron, app: app) } }
+  }
+
+  #Preview("Taşeron detayı · koyu") {
+    PreviewHost { app in NavigationStack { SubcontractorDetailView(subcontractor: PreviewData.kabaTaseron, app: app) } }
+      .preferredColorScheme(.dark)
+  }
+
+  #Preview("Personel") {
+    PreviewHost { app in NavigationStack { PersonnelListView(app: app) } }
+  }
+
+  #Preview("Personel detayı · büyük yazı") {
+    PreviewHost { app in NavigationStack { PersonnelDetailView(person: PreviewData.kalipUstasi, app: app) } }
+      .dynamicTypeSize(.accessibility2)
+  }
+
+  #Preview("Ekipler") {
+    PreviewHost { app in NavigationStack { CrewListView(app: app) } }
+  }
+
+  #Preview("Ekip detayı · koyu") {
+    PreviewHost { app in NavigationStack { CrewDetailView(crew: PreviewData.kalipEkibi, app: app) } }
+      .preferredColorScheme(.dark)
+  }
+
+  #Preview("Proje ekip ve personel · şantiye şefi") {
+    PreviewHost(grants: PreviewSupport.siteChiefGrants) { app in
+      NavigationStack { ProjectWorkforceView(project: PreviewData.sivas, app: app) }
+    }
+  }
+
+  #Preview("Yeni personel") {
+    PersonnelFormView(model: PersonnelFormViewModel(repository: InMemoryBackend().repositories.workforce),
+                      showsPhone: true) { _ in }
+      .tint(RDColor.brandText)
   }
 
   /// Tasarım sistemi bileşenleri tek ekranda (açık ve koyu temada kontrol için).

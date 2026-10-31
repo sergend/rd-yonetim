@@ -44,3 +44,12 @@ public extension BalanceSide {
     }
   }
 }
+
+public extension EmploymentType {
+  var tone: StatusTone {
+    switch self {
+    case .sirket: .info
+    case .taseron, .diger: .neutral
+    }
+  }
+}

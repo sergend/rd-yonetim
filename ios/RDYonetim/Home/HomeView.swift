@@ -9,6 +9,13 @@ enum AppRoute: Hashable {
   case cari(CariAccount)
   case generalExpenses
   case tasks(projectId: UUID?)
+  case subcontractors
+  case subcontractor(Subcontractor)
+  case personnelList
+  case personnel(Personnel)
+  case crews
+  case crew(Crew)
+  case projectWorkforce(Project)
   case placeholder(AppModule)
 }
 
@@ -73,6 +80,13 @@ struct HomeView: View {
     case .cari(let account): CariDetailView(account: account, app: app)
     case .generalExpenses: GeneralExpensesView(app: app)
     case .tasks(let projectId): TaskListView(projectId: projectId, app: app)
+    case .subcontractors: SubcontractorListView(app: app)
+    case .subcontractor(let item): SubcontractorDetailView(subcontractor: item, app: app)
+    case .personnelList: PersonnelListView(app: app)
+    case .personnel(let person): PersonnelDetailView(person: person, app: app)
+    case .crews: CrewListView(app: app)
+    case .crew(let crew): CrewDetailView(crew: crew, app: app)
+    case .projectWorkforce(let project): ProjectWorkforceView(project: project, app: app)
     case .placeholder(let module): ModulePlaceholderView(module: module)
     }
   }
@@ -196,6 +210,9 @@ struct HomeView: View {
     switch module {
     case .projeler: .projects
     case .isTakibi: .tasks(projectId: nil)
+    case .taseronlar: .subcontractors
+    case .personel: .personnelList
+    case .ekipler: .crews
     case .cari: .cariList(projectId: nil)
     case .genelGider: .generalExpenses
     default: .placeholder(module)

@@ -20,13 +20,13 @@ npx supabase test db        # pgTAP testleri (hepsi "ok" olmalı)
 ```
 
 `supabase start` deneme verisini (`seed.sql`) yükler: **Sivas 30 Daire Projesi**
-(DEMO), örnek cariler ve işler. Yerel kullanıcılar (şifre `yerel-test-1234`):
+(DEMO), örnek cariler, işler, taşeronlar, personel, ekipler ve görevlendirmeler. Yerel kullanıcılar (şifre `yerel-test-1234`):
 
 | E-posta | Rol | Görmesi gereken |
 | --- | --- | --- |
 | `yonetici@example.test` | Yönetici | Her şey |
 | `muhasebe@example.test` | Muhasebe | Projeler, cariler, bakiyeler, genel giderler |
-| `sef@example.test` | Sivas projesinde şantiye şefi | Projeler ve işler; **cari ve tutar yok** |
+| `sef@example.test` | Sivas projesinde şantiye şefi | Projeler, işler, projesindeki taşeron/personel/ekip; **cari ve tutar yok** |
 
 ## 2. Gizli ayar dosyası
 
@@ -63,6 +63,20 @@ biçimi bilerek böyledir (xcconfig'te `//` yorum başlatır).
 - [ ] İş takibinde daire simgesine tek dokunuş işi tamamlıyor.
 - [ ] Xcode Canvas'ta "Tasarım sistemi" önizlemesi açık ve koyu temada açılıyor.
 - [ ] Uygulamayı kapatıp açın: oturum hatırlanmalı (Keychain).
+
+### Aşama 2: taşeron, personel, ekip ve görevlendirme
+
+- [ ] `yonetici@example.test`: ana ekranda Taşeronlar, Personel ve Ekipler modülleri görünür; ana ekranda yine hiçbir tutar yok.
+- [ ] Taşeronlar → "Örnek Kaba İnşaat Taşeronu": cari kart (DEMO-C01) bağlantısı, Sivas projesi, Kalıp/Demir ekipleri, personel ve "Vergi levhası (demo)" görünür.
+- [ ] Yeni taşeron: yalnızca ad girerek kaydedilebilir; cari kart seçicide müşteri carileri ve başka taşerona bağlı cariler çıkmaz.
+- [ ] Yeni personel: yalnızca ad soyad ile kaydedilir; "Taşeron personeli" seçilince taşeron zorunlu olur; telefon alanının altındaki KVKK notu görünür.
+- [ ] Ekipler → Kalıp Ekibi → "Üye ekle": seçicide yalnızca o taşeronun personeli var. Bir üyeyi sola kaydırıp "Bugün ayrıldı": kişi "Üyelik geçmişi"ne geçer, silinmez.
+- [ ] Ayrılan kişiyi başka bir ekibe bugünden önceki bir tarihle eklemeyi deneyin: "aynı anda yalnızca bir ekipte" mesajı.
+- [ ] Projeler → Sivas → "Ekip ve personel": "Bugün sahada" listesi, projedeki taşeron, devam eden görevlendirmeler. "+" ile Elektrik Ekibi'ni görevlendirin (tür → ekip → seç → Görevlendir: 3 dokunuş).
+- [ ] Aynı ekibi aynı projeye tekrar görevlendirmeyi deneyin: "aynı tarihlerde zaten görevlendirme var".
+- [ ] `sef@example.test`: Taşeronlar/Personel/Ekipler yalnızca kendi projelerindeki kayıtları gösterir; "+" (yeni kart) düğmesi yok; personel telefonu görünür.
+- [ ] `muhasebe@example.test`: personel listesi görünür, personel detayında **İletişim bölümü yok**.
+- [ ] Açık/koyu tema ve en büyük metin boyutunda yeni ekranlar okunaklı; satırlar kesilmiyor.
 
 ## 5. Otomatik testler
 

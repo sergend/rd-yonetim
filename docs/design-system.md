@@ -96,3 +96,25 @@ Yeni bileşen yalnızca en az iki ekranda kullanılacaksa eklenir.
 - **İş takibi:** daire simgesine tek dokunuşla tamamlama (önceden kaydırma
   gerekiyordu); "Başladı" kaydırmayla; filtreler menüde; gecikmiş tarih kırmızı.
 - **Genel giderler:** ortak satır bileşeni ve durum ekranları.
+
+## Aşama 2 ekranları
+
+Yeni ekranlar yeni bileşen kütüphanesi kurmaz; Aşama 1.5 bileşenlerini kullanır.
+Yalnızca bu ekranlarda tekrar eden küçük parçalar `RDYonetim/Workforce/WorkforceShared.swift`
+dosyasındadır: `PeriodBadge` (Başlayacak / Devam ediyor / Bitti), `RecordBadges`
+(DEMO, Pasif), `RecordHeader` (kart başlığı), `PhoneRow` (dokununca arama),
+`TradePicker`, `InactiveFilterMenu`, `SheetToolbar` (Vazgeç / onay).
+
+- **Taşeronlar / Personel / Ekipler:** arama, araç çubuğunda filtre menüsü,
+  pasif kayıtlar varsayılan olarak gizli. "+" yalnızca kart yazma izni olanda.
+- **Taşeron detayı:** cari kart bağlantısı (göremeyen kullanıcıya kilitli not),
+  çalıştığı projeler, ekipler, personel, belgeler; tutar yok.
+- **Personel detayı:** iletişim bölümü yalnızca iletişim izni olana; ekip geçmişi
+  ve görevlendirmeler dönem etiketiyle.
+- **Ekip detayı:** "Ekipte şu an" ve "Üyelik geçmişi" ayrı; ayrılış sola kaydırma
+  ile (silmez, bitiş tarihi yazar).
+- **Proje → Ekip ve personel:** bugün sahada olanlar, projedeki taşeronlar,
+  devam eden ve geçmiş görevlendirmeler. Görevlendirme sayfası: tür (ekip/kişi)
+  → seç → Görevlendir; başlangıç bugün, bitiş isteğe bağlı.
+- Formlarda zorunlu alan yalnızca ad; diğer her şey isteğe bağlı. Sayfalar
+  `.medium` boyutta açılır, tek elle kullanılabilir.
