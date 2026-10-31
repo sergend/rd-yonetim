@@ -442,6 +442,12 @@ final class DocumentViewModelTests: XCTestCase {
     let expenseModel = DocumentUploadViewModel(link: .financeDocument(UUID()), linkTitle: "Gider", projectId: f.project.id,
                                                access: access, repositories: f.repositories, store: f.store)
     XCTAssertEqual(expenseModel.kind, .fis, "giderde varsayılan tür fiş (birkaç dokunuşla yükleme)")
+
+    expenseModel.setFile(SampleFiles.pdf(), fileName: "fis.pdf")
+    expenseModel.fileFailed(RepositoryError.validation("Fotoğraf alınamadı."))
+    XCTAssertNil(expenseModel.fileData, "okunamayan seçim önceki dosyayı bırakmaz")
+    XCTAssertEqual(expenseModel.fileError, "Fotoğraf alınamadı.")
+    XCTAssertFalse(expenseModel.canSubmit)
   }
 
   func testListFiltersAndSearchesAndShowsPendingUploads() async throws {

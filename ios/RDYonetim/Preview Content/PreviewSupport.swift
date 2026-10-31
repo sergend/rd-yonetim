@@ -10,7 +10,7 @@ import SwiftUI
     static func app(grants: [PermissionGrant]? = nil, contracts: Bool = false) async -> AppModel {
       let backend = contracts ? await PreviewData.contractsBackend() : await PreviewData.backend()
       if let grants { await backend.set(grants: grants) }
-      let app = AppModel(repositories: backend.repositories)
+      let app = AppModel(repositories: backend.repositories, documentStore: InMemoryPendingUploadStore())
       await app.session.start()
       await app.reloadLookups()
       return app

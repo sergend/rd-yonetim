@@ -141,6 +141,17 @@ struct ProjectDetailView: View {
         .rdRowBackground()
       }
 
+      if app.access.can(.belgeRead, in: project.id) {
+        Section("Belgeler") {
+          NavigationLink(value: AppRoute.documents(link: .project(project.id), title: "\(project.code) belgeleri",
+                                                   projectId: project.id)) {
+            RDRow(symbol: AppModule.belgeler.symbol, symbolTint: RDColor.brandText,
+                  title: "Proje belgeleri", subtitle: "İrsaliye, tutanak, ruhsat; tara veya dosya ekle")
+          }
+        }
+        .rdRowBackground()
+      }
+
       if model.canSeeCari || app.access.can(.sozlesmeRead, in: project.id)
         || app.access.can(.giderRead, in: project.id) || app.access.can(.giderWrite, in: project.id)
         || app.access.can(.gelirRead, in: project.id) {

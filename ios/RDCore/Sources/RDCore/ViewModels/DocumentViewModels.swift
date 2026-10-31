@@ -210,6 +210,13 @@ public final class DocumentUploadViewModel {
     fileError = nil
   }
 
+  /// Dosya okunamadı / tarama veya fotoğraf hazırlanamadı.
+  public func fileFailed(_ error: Error) {
+    fileData = nil
+    fileType = nil
+    fileError = message(for: error)
+  }
+
   public var titleError: String? {
     let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
     if trimmed.isEmpty { return "Belge adı zorunlu" }

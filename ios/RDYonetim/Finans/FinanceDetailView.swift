@@ -32,6 +32,11 @@ struct FinanceDocumentDetailView: View {
   }
 
   private var document: FinanceDocument { model.document }
+
+  /// Belge bölümü: belge okuma yetkisi ve bu gider/geliri görebilmek (son karar sunucuda).
+  private var canSeeDocuments: Bool {
+    document.projectId.map { app.access.can(.belgeRead, in: $0) } ?? app.access.can(.belgeRead)
+  }
   private var kind: FinanceDocKind { document.kind }
 
   var body: some View {
@@ -44,6 +49,10 @@ struct FinanceDocumentDetailView: View {
       actionsSection
       settlementsSection
       infoSection
+      if canSeeDocuments {
+        LinkedDocumentsSection(link: .financeDocument(document.id), linkTitle: document.documentNo,
+                               projectId: document.projectId, app: app)
+      }
       historySection
     }
     .listStyle(.insetGrouped)
