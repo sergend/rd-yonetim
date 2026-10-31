@@ -473,24 +473,40 @@ public final class FinanceDocumentDetailViewModel {
     }
   }
 
-  /// Kısmi veya tam ödeme/tahsilat. Aynı girdiyle tekrar deneme aynı kimliği
-  /// kullanır; girdi değişirse yeni kimlik üretilir.
+  /// Kısmi veya tam ödeme/tahsilat. Aynı girdiyle tekrar deneme (ör. ağ
+  /// hatasından sonra) aynı kimliği kullanır, sunucu ikinci ödeme açmaz; girdi
+  /// değişirse yeni kimlik üretilir. Sunucu kimliği reddederse (farklı içerik
+  /// veya iptal edilmiş kayıt) sonraki deneme yeni kimlikle yapılır.
   public func recordSettlement(amount: Decimal, sourceId: UUID, date: CalendarDate, settledBy: String?,
                                description: String?, exchangeRate: Decimal?) async -> Bool {
-    let key = "\(amount)|\(sourceId)|\(date.iso)|\(exchangeRate.map { "\($0)" } ?? "")"
+    let by = settledBy?.nilIfBlank
+    let note = description?.nilIfBlank
+    let key = [ "\(amount)", sourceId.uuidString, date.iso, exchangeRate.map { "\($0)" } ?? "", by ?? "", note ?? "" ]
+      .joined(separator: "|")
     if pendingSettlementKey != key {
       pendingSettlementId = UUID()
       pendingSettlementKey = key
     }
     let draft = FinanceSettlementDraft(id: pendingSettlementId, documentId: document.id, amount: amount,
-                                       paymentSourceId: sourceId, settlementDate: date, settledBy: settledBy?.nilIfBlank,
-                                       description: description?.nilIfBlank, exchangeRate: exchangeRate)
-    let ok = await perform { _ = try await repositories.finance.recordSettlement(draft) }
-    if ok {
+                                       paymentSourceId: sourceId, settlementDate: date, settledBy: by,
+                                       description: note, exchangeRate: exchangeRate)
+    isWorking = true
+    errorMessage = nil
+    defer { isWorking = false }
+    do {
+      _ = try await repositories.finance.recordSettlement(draft)
       pendingSettlementId = UUID()
       pendingSettlementKey = nil
+      await load()
+      return true
+    } catch {
+      if case RepositoryError.conflict = error {
+        pendingSettlementId = UUID()
+        pendingSettlementKey = nil
+      }
+      errorMessage = message(for: error)
+      return false
     }
-    return ok
   }
 
   public func cancelSettlement(_ settlement: FinanceSettlement, reason: String) async -> Bool {

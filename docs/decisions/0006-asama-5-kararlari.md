@@ -1,7 +1,7 @@
 # Karar 0006: Aşama 5 kararları (şirket gider, gelir ve borç yönetimi)
 
 Hesap ve durum kuralları, örnekler: [gider-gelir-hesaplama.md](../gider-gelir-hesaplama.md).
-Migration: `supabase/migrations/20261104000000_gider_gelir.sql` (eski migration'lar değişmedi).
+Migration: `supabase/migrations/20261104000000_gider_gelir.sql`; inceleme düzeltmeleri `20261105000000_gider_gelir_duzeltmeleri.sql` (eski migration'lar değişmedi).
 
 | # | Karar | Gerekçe |
 | --- | --- | --- |
@@ -12,7 +12,7 @@ Migration: `supabase/migrations/20261104000000_gider_gelir.sql` (eski migration'
 | 5 | Durum hesabı `v_finance_document_status` görünümündedir: `taslak`, `iptal`, `acik` (ödenmedi), `kismi` (kısmen), `kapandi` (tamamen). Kalan = tutar − etkin ödemeler. Vadesi geçmiş = onaylı, kalan > 0 ve vade < bugün (İstanbul) | Durum saklanmaz, hesaplanır; ödeme iptali durumu kendiliğinden geri açar. |
 | 6 | Vade isteğe bağlıdır; boşsa belge tarihidir (peşin). Vade belge tarihinden önce olamaz | Az zorunlu alan; küçük fişlerde vade sorulmaz. |
 | 7 | Bir belgeye birden çok kısmi ödeme yapılabilir; toplam tutarı aşamaz (belge satırı `FOR UPDATE` kilitlenir, eşzamanlı iki ödeme sıraya girer) | Çift ödeme ve aşırı ödeme veritabanında engellenir (`101_gider_gelir_concurrency.test.sql`). |
-| 8 | Tekrar gönderim: aynı belge kimliği aynı içerikle gelirse mevcut belge döner, farklı içerikle 23505. Aynı ödeme kimliği aynı belge, tutar, kaynak, tarih ve kurla gelirse mevcut ödeme döner, aksi halde 23505. Tekrar onay ikinci yükümlülük açmaz | Zayıf şantiye bağlantısında "Kaydet"e iki kez basmak çift kayıt üretmez. |
+| 8 | Tekrar gönderim: aynı belge kimliği aynı içerikle (belge referansı, not ve bildiren dahil, boşluklar kırpılarak) gelirse mevcut belge döner, farklı içerikle 23505. Aynı ödeme kimliği aynı belge, tutar, kaynak, tarih, kur, ödeyen ve açıklamayla gelirse mevcut ödeme döner, aksi halde 23505. İptal edilmiş ödemenin kimliği tekrar gönderilirse 23505 döner (etkin ödeme gibi görünmez); uygulama ağ hatasında aynı kimlikle yeniden dener, çakışmada yeni kimlik üretir. Taslağı yalnızca onu görebilen kullanıcı (`private.can_read_fin_doc`) güncelleyebilir veya tekrar gönderebilir: şantiye şefi yalnızca kendi taslağını, okuma izni olan proje müdürü ve muhasebe kapsamındaki taslakları düzenler; görünmeyen belgenin kimliği 23505 alır. Tekrar onay ikinci yükümlülük açmaz | Zayıf şantiye bağlantısında "Kaydet"e iki kez basmak çift kayıt üretmez. |
 | 9 | Ödeme kaynağı mevcut `payment_sources` tablosudur (şirket, kart, kişi, diğer; ör. "Kürşat kartı"). Kaynak yalnızca bilgidir; kasa, banka veya kaynak bakiyesi tutulmaz | Karar 0005 madde 18 ile aynı. Genel kasa modülü bu aşamada yoktur. |
 | 10 | Kişisel kartla yapılan ödeme ödeme kaynağında görünür (`settled_by`, rapor "ödeme kaynağına göre"), ancak kart sahibine otomatik ikinci bir borç (cari hareket) yazılmaz | İstenen kural. Kart sahibine geri ödeme gerekiyorsa ayrı, bilinçli bir kayıtla yapılmalıdır. |
 | 11 | Küçük, carisiz, peşin giderler için "Peşin ödendi" bildirimi: sahada belge `reported_settled` + kaynak + ödeyen kişiyle girilir; bildirim tek başına ödeme değildir. Onayda aynı işlemde tam tutarlı ödeme kaydı açılır. Bu yüzden peşin bildirilmiş belgeyi onaylamak için ödeme izni de gerekir | Küçük harcamalar izlenebilir; onaysız fiş ödeme sayılmaz. |

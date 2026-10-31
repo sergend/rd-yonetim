@@ -319,6 +319,86 @@ final class FinanceRepositoryTests: XCTestCase {
     } catch RepositoryError.forbidden {}
   }
 
+  func testDraftEditableOnlyByThoseWhoCanSeeIt() async throws {
+    let f = await Fixture()
+    let chiefOne = UserProfile(id: UUID(), email: "sef1@example.test", fullName: "Şef 1")
+    let chiefTwo = UserProfile(id: UUID(), email: "sef2@example.test", fullName: "Şef 2")
+    await f.backend.set(grants: grants([.giderWrite], project: f.project.id))
+    await f.backend.set(profile: chiefOne)
+    let draft = f.expense(1_000)
+    let own = try await f.repo.saveDocument(id: UUID(), draft: draft, expectedVersion: nil)
+    await f.backend.set(profile: chiefTwo)
+    for version in [nil, own.version] as [Int?] {
+      do {
+        _ = try await f.repo.saveDocument(id: own.id, draft: f.expense(1), expectedVersion: version)
+        XCTFail("başka şefin taslağı değiştirilmemeli / içeriği döndürülmemeli")
+      } catch RepositoryError.conflict {}
+    }
+    do {
+      _ = try await f.repo.cancel(id: own.id, reason: "başkasının taslağı")
+      XCTFail("başka şefin taslağı iptal edilmemeli")
+    } catch RepositoryError.notFound {}
+    await f.backend.set(profile: chiefOne)
+    let updated = try await f.repo.saveDocument(id: own.id, draft: f.expense(1_500), expectedVersion: own.version)
+    XCTAssertEqual(updated.amount, 1_500, "sahibi kendi taslağını günceller")
+    await f.backend.set(grants: grants([.giderRead, .giderWrite], project: f.project.id))
+    await f.backend.set(profile: chiefTwo)
+    let byManager = try await f.repo.saveDocument(id: own.id, draft: f.expense(1_600), expectedVersion: updated.version)
+    XCTAssertEqual(byManager.amount, 1_600, "okuma izni olan proje müdürü taslağı düzenleyebilir")
+  }
+
+  func testResendComparesReferenceNotesAndReporter() async throws {
+    let f = await Fixture()
+    var draft = f.expense()
+    draft.documentRef = "Fiş 1"
+    draft.notes = "not A"
+    draft.reportedSettled = true
+    draft.reportedSourceId = f.card.id
+    draft.reportedBy = "Kürşat"
+    let id = UUID()
+    _ = try await f.repo.saveDocument(id: id, draft: draft, expectedVersion: nil)
+    var same = draft
+    same.documentRef = " Fiş 1 "
+    let again = try await f.repo.saveDocument(id: id, draft: same, expectedVersion: nil)
+    XCTAssertEqual(again.id, id, "boşluk farkı aynı istek sayılır")
+    for change in [\FinanceDocumentDraft.documentRef, \.notes, \.reportedBy] {
+      var changed = draft
+      changed[keyPath: change] = "farklı"
+      do {
+        _ = try await f.repo.saveDocument(id: id, draft: changed, expectedVersion: nil)
+        XCTFail("aynı kimlikle farklı \(change) kabul edilmemeli")
+      } catch RepositoryError.conflict {}
+    }
+  }
+
+  func testSettlementResendComparesPayerAndDescriptionAndRejectsCancelledId() async throws {
+    let f = await Fixture()
+    let doc = try await f.repo.saveDocument(id: UUID(), draft: f.expense(), expectedVersion: nil)
+    _ = try await f.repo.approve(id: doc.id, expectedVersion: nil, settlementId: nil)
+    let payment = FinanceSettlementDraft(documentId: doc.id, amount: 400, paymentSourceId: f.company.id,
+                                         settlementDate: Fixture.today, settledBy: "Ali", description: "kısmi")
+    _ = try await f.repo.recordSettlement(payment)
+    var same = payment
+    same.settledBy = " Ali "
+    _ = try await f.repo.recordSettlement(same)
+    for change in [\FinanceSettlementDraft.settledBy, \.description] {
+      var changed = payment
+      changed[keyPath: change] = "farklı"
+      do {
+        _ = try await f.repo.recordSettlement(changed)
+        XCTFail("aynı kimlikle farklı \(change) kabul edilmemeli")
+      } catch RepositoryError.conflict {}
+    }
+    _ = try await f.repo.cancelSettlement(id: payment.id, reason: "yanlış kaynaktan girildi")
+    do {
+      _ = try await f.repo.recordSettlement(payment)
+      XCTFail("iptal edilmiş ödemenin kimliği etkin ödeme gibi dönmemeli")
+    } catch RepositoryError.conflict {}
+    let status = try await f.repo.statuses(documentIds: [doc.id]).first
+    XCTAssertEqual(status?.remainingAmount, 10_000)
+    XCTAssertEqual(status?.settlementState, .acik)
+  }
+
   func testReviseCancelsWithReversalAndOpensReplacementDraft() async throws {
     let f = await Fixture()
     let doc = try await f.repo.saveDocument(id: UUID(), draft: f.expense(cari: f.supplier.id), expectedVersion: nil)
@@ -521,6 +601,29 @@ final class FinanceViewModelTests: XCTestCase {
     XCTAssertEqual(vm.remaining, 7_500)
     XCTAssertFalse(vm.canRevise, "ödemesi olan belge önce ödeme iptaliyle düzeltilir")
     XCTAssertFalse(vm.canCancel)
+  }
+
+  func testSettlementRetryKeepsIdOnNetworkErrorAndRenewsItAfterConflict() async throws {
+    let f = await Fixture()
+    let doc = try await f.repo.saveDocument(id: UUID(), draft: f.expense(), expectedVersion: nil)
+    _ = try await f.repo.approve(id: doc.id, expectedVersion: nil, settlementId: nil)
+    let vm = FinanceDocumentDetailViewModel(document: doc, access: AccessControl(grants: await f.backend.grants),
+                                            repositories: f.backend.repositories)
+    await vm.load()
+    await f.backend.set(nextError: .network)
+    let failed = await vm.recordSettlement(amount: 100, sourceId: f.company.id, date: Fixture.today, settledBy: "Ali",
+                                           description: nil, exchangeRate: nil)
+    XCTAssertFalse(failed)
+    let firstId = vm.pendingSettlementId
+    await f.backend.set(nextError: .conflict(nil))
+    let conflicted = await vm.recordSettlement(amount: 100, sourceId: f.company.id, date: Fixture.today,
+                                               settledBy: " Ali ", description: nil, exchangeRate: nil)
+    XCTAssertFalse(conflicted)
+    XCTAssertNotEqual(vm.pendingSettlementId, firstId, "reddedilen kimlik tekrar kullanılmaz")
+    let ok = await vm.recordSettlement(amount: 100, sourceId: f.company.id, date: Fixture.today, settledBy: "Ali",
+                                       description: nil, exchangeRate: nil)
+    XCTAssertTrue(ok)
+    XCTAssertEqual(vm.activeSettlements.count, 1)
   }
 
   func testPayablesGroupOverdueThisWeekAndLater() async throws {

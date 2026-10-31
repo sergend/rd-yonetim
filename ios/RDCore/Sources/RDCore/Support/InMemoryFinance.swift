@@ -182,6 +182,8 @@ extension InMemoryBackend {
 
     if let index = financeDocumentList.firstIndex(where: { $0.id == id }) {
       let existing = financeDocumentList[index]
+      // Görünürlük kuralı: göremediği belgeyi güncelleyemez veya tekrar gönderemez.
+      guard canRead(existing) else { throw RepositoryError.conflict("Bu kimlikle başka bir belge var") }
       guard let expectedVersion else {
         // Tekrar gönderim: içerik aynıysa aynı belge döner.
         guard existing.kind == document.kind, existing.categoryId == document.categoryId,
@@ -190,7 +192,8 @@ extension InMemoryBackend {
               existing.scope == document.scope, existing.currency == document.currency,
               existing.exchangeRate == document.exchangeRate, existing.cariAccountId == document.cariAccountId,
               existing.invoiceNo == document.invoiceNo, existing.reportedSettled == document.reportedSettled,
-              existing.reportedSourceId == document.reportedSourceId else {
+              existing.reportedSourceId == document.reportedSourceId, existing.reportedBy == document.reportedBy,
+              existing.documentRef == document.documentRef, existing.notes == document.notes else {
           throw RepositoryError.conflict("Bu kimlikle farklı bir belge var")
         }
         return existing
@@ -303,11 +306,16 @@ extension InMemoryBackend {
       throw RepositoryError.forbidden("Ödeme/tahsilat kaydetme yetkiniz yok")
     }
     if let existing = financeSettlementList.first(where: { $0.id == draft.id }) {
+      guard existing.status == .aktif else {
+        throw RepositoryError.conflict("Bu kimlikli ödeme/tahsilat iptal edilmiş; yeni kayıt için yeniden deneyin")
+      }
       let rate = try HakedisMath.exchangeRate(currency: document.currency, rate: draft.exchangeRate)
       guard existing.documentId == draft.documentId, existing.amount == draft.amount,
             existing.paymentSourceId == draft.paymentSourceId, existing.settlementDate == draft.settlementDate,
-            existing.exchangeRate == rate else {
-        throw RepositoryError.conflict("Bu kimlikle farklı bir ödeme/tahsilat var (belge, tutar, kaynak, tarih veya kur farklı)")
+            existing.exchangeRate == rate, existing.settledBy == draft.settledBy.nilIfBlank,
+            existing.description == draft.description.nilIfBlank else {
+        throw RepositoryError.conflict(
+          "Bu kimlikle farklı bir ödeme/tahsilat var (belge, tutar, kaynak, tarih, kur, ödeyen veya açıklama farklı)")
       }
       return existing
     }

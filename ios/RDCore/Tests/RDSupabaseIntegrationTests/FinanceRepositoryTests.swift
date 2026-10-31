@@ -186,4 +186,65 @@ final class FinanceRepositoryTests: XCTestCase {
         .first.map { _ in XCTFail("şef rapor satırı görmemeli") }
     } catch is RepositoryError {}
   }
+
+  func testChiefCannotEditOthersDraftButEditsOwn() async throws {
+    let admin = try await signedIn("yonetici@example.test")
+    let project = try await sivas(admin)
+    let categories = try await admin.finance.categories(kind: .gider, includeInactive: false)
+    let category = try XCTUnwrap(categories.first { $0.name == "Nakliye" })
+    func draft(_ amount: Decimal, _ text: String) -> FinanceDocumentDraft {
+      FinanceDocumentDraft(kind: .gider, scope: .project(project.id), categoryId: category.id, description: text,
+                           amount: amount, documentDate: .today())
+    }
+    let adminDraft = try await admin.finance.saveDocument(id: UUID(), draft: draft(700, "Yönetici taslağı (demo)"),
+                                                          expectedVersion: nil)
+    let chief = try await signedIn("sef@example.test")
+    for version in [nil, adminDraft.version] as [Int?] {
+      do {
+        _ = try await chief.finance.saveDocument(id: adminDraft.id, draft: draft(1, "Yönetici taslağı (demo)"),
+                                                 expectedVersion: version)
+        XCTFail("şef başkasının taslağını değiştirmemeli")
+      } catch let error as RepositoryError {
+        guard case .conflict = error else { return XCTFail("beklenmeyen hata: \(error)") }
+      }
+    }
+    let unchanged = try await admin.finance.document(id: adminDraft.id)
+    XCTAssertEqual(unchanged.amount, 700)
+    let own = try await chief.finance.saveDocument(id: UUID(), draft: draft(80, "Şef taslağı (demo)"), expectedVersion: nil)
+    let updated = try await chief.finance.saveDocument(id: own.id, draft: draft(85, "Şef taslağı (demo)"),
+                                                       expectedVersion: own.version)
+    XCTAssertEqual(updated.amount, 85)
+  }
+
+  func testCancelledSettlementIdCannotBeReplayed() async throws {
+    let repos = try await signedIn("yonetici@example.test")
+    let project = try await sivas(repos)
+    let categories = try await repos.finance.categories(kind: .gider, includeInactive: false)
+    let category = try XCTUnwrap(categories.first { $0.name == "Nakliye" })
+    let id = UUID()
+    _ = try await repos.finance.saveDocument(id: id, draft: FinanceDocumentDraft(
+      kind: .gider, scope: .project(project.id), categoryId: category.id, description: "Tekrar deneme testi (demo)",
+      amount: 500, documentDate: .today()), expectedVersion: nil)
+    _ = try await repos.finance.approve(id: id, expectedVersion: nil, settlementId: nil)
+    let payment = FinanceSettlementDraft(documentId: id, amount: 200, paymentSourceId: companySource,
+                                         settlementDate: .today(), settledBy: "Ali", description: "kısmi")
+    _ = try await repos.finance.recordSettlement(payment)
+    var other = payment
+    other.settledBy = "Veli"
+    do {
+      _ = try await repos.finance.recordSettlement(other)
+      XCTFail("farklı ödeyen aynı kimlikle reddedilmeli")
+    } catch let error as RepositoryError {
+      guard case .conflict = error else { return XCTFail("beklenmeyen hata: \(error)") }
+    }
+    _ = try await repos.finance.cancelSettlement(id: payment.id, reason: "Tekrar deneme testi iptali")
+    do {
+      _ = try await repos.finance.recordSettlement(payment)
+      XCTFail("iptal edilmiş ödemenin kimliği etkin ödeme gibi dönmemeli")
+    } catch let error as RepositoryError {
+      guard case .conflict = error else { return XCTFail("beklenmeyen hata: \(error)") }
+    }
+    let status = try await repos.finance.statuses(documentIds: [id]).first
+    XCTAssertEqual(status?.remainingAmount, 500)
+  }
 }
