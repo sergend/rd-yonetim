@@ -55,6 +55,57 @@ public enum PreviewData {
     return backend
   }
 
+  /// Sözleşme ve hakediş önizlemeleri: örnek sözleşme, onaylı ve kısmen
+  /// ödenmiş Eylül hakedişi, onay bekleyen Ekim imalatı.
+  public static func contractsBackend() async -> InMemoryBackend {
+    let backend = await backend()
+    await seedContracts(backend)
+    return backend
+  }
+
+  // Sözleşme ve hakediş (Aşama 4). Tutarlar hayalidir; vergi kuralı örnek
+  // olarak "doğrulanmış" işaretlidir, gerçek oran değildir.
+  public static let sozlesme = Contract(contractNo: "DEMO-S-001", projectId: sivas.id, subcontractorId: kabaTaseron.id,
+                                        cariAccountId: taseron.id, title: "Kaba inşaat kalıp ve beton işçiliği",
+                                        signedDate: CalendarDate(year: 2026, month: 8, day: 1), isDemo: true)
+  public static let odemeKaynagi = PaymentSource(name: "Şirket ödemesi (örnek)", kind: .sirket)
+
+  static func seedContracts(_ backend: InMemoryBackend) async {
+    let version = ContractVersion(contractId: sozlesme.id, startDate: CalendarDate(year: 2026, month: 8, day: 1),
+                                  totalAmount: 1_332_000, retentionRate: 10, paymentTerms: "Onaydan sonra 15 gün (örnek)")
+    let kalip = ContractItem(versionId: version.id, contractId: sozlesme.id, lineNo: 1, method: .birimFiyat,
+                             description: "Temel ve perde kalıbı", unit: "m2", quantity: 2400, unitPrice: 450)
+    let beton = ContractItem(versionId: version.id, contractId: sozlesme.id, lineNo: 2, method: .birimFiyat,
+                             description: "Beton döküm işçiliği", unit: "m3", quantity: 900, unitPrice: 280)
+    let iskele = ContractItem(versionId: version.id, contractId: sozlesme.id, lineNo: 3, method: .goturu,
+                              description: "İskele kurulumu", unit: "goturu", unitPrice: 60_000)
+    var contract = sozlesme
+    contract.status = .taslak
+    await backend.seedContracts(contracts: [contract], versions: [version], items: [kalip, beton, iskele],
+                                paymentSources: [odemeKaynagi])
+    _ = try? await backend.transitionContract(id: sozlesme.id, action: .onayla, reason: nil, expectedVersion: nil)
+    let september = CalendarDate(year: 2026, month: 9, day: 20)
+    let w1 = WorkQuantity(contractId: sozlesme.id, projectId: sivas.id, itemKey: kalip.itemKey, workDate: september,
+                          quantity: 600, location: "A blok temel")
+    let w2 = WorkQuantity(contractId: sozlesme.id, projectId: sivas.id, itemKey: beton.itemKey, workDate: september,
+                          quantity: 150, location: "A blok temel")
+    _ = try? await backend.saveWorkQuantity(w1)
+    _ = try? await backend.saveWorkQuantity(w2)
+    _ = try? await backend.approveWorkQuantities(ids: [w1.id, w2.id])
+    let first = UUID()
+    _ = try? await backend.createHakedis(id: first, contractId: sozlesme.id, periodStart: CalendarDate(year: 2026, month: 9, day: 1),
+                                         periodEnd: CalendarDate(year: 2026, month: 9, day: 30), note: nil)
+    _ = try? await backend.transitionHakedis(id: first, action: .gonder, reason: nil, expectedVersion: nil)
+    _ = try? await backend.transitionHakedis(id: first, action: .onayla, reason: nil, expectedVersion: nil)
+    _ = try? await backend.postHakedis(id: first, entryDate: CalendarDate(year: 2026, month: 10, day: 5))
+    _ = try? await backend.recordPayment(FinancePaymentDraft(contractId: sozlesme.id, target: .hakedis(first), amount: 150_000,
+                                                             paymentSourceId: odemeKaynagi.id,
+                                                             paymentDate: CalendarDate(year: 2026, month: 10, day: 15)))
+    let w3 = WorkQuantity(contractId: sozlesme.id, projectId: sivas.id, itemKey: kalip.itemKey,
+                          workDate: CalendarDate(year: 2026, month: 10, day: 20), quantity: 400, location: "A blok perde")
+    _ = try? await backend.saveWorkQuantity(w3)
+  }
+
   /// Bu ayın dünkü güne kadarki iş günleri (Pazar boş). Örnek: rapor, yarım
   /// gün ve fazla mesai; bir gün bilerek boş (henüz işlenmedi).
   static func seedPuantaj(_ backend: InMemoryBackend) async {

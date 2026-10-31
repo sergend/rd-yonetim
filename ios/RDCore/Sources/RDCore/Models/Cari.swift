@@ -27,6 +27,7 @@ public enum CariEntryKind: String, Codable, CaseIterable, Sendable, Identifiable
   case acilis, manuel, avans, odeme, tahsilat
   case tersKayit = "ters_kayit"
   case hakedis, gider, fatura, kesinti
+  case teminatIadesi = "teminat_iadesi"
 
   public var id: String { rawValue }
   public var title: String {
@@ -41,6 +42,7 @@ public enum CariEntryKind: String, Codable, CaseIterable, Sendable, Identifiable
     case .gider: "Gider"
     case .fatura: "Fatura"
     case .kesinti: "Kesinti"
+    case .teminatIadesi: "Teminat iadesi"
     }
   }
 

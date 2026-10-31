@@ -26,6 +26,24 @@ public actor InMemoryBackend {
   public var puantajEntries: [PuantajEntry] = []
   public var puantajPeriods: [PuantajPeriod] = []
   public var puantajEvents: [UUID: [PuantajPeriodEvent]] = [:]
+  // Aşama 4 (bkz. InMemoryHakedis.swift)
+  public var contractList: [Contract] = []
+  public var contractVersions: [ContractVersion] = []
+  public var contractItems: [ContractItem] = []
+  public var contractTaxCodes: [UUID: [String]] = [:]
+  public var taxRuleList: [TaxRule] = []
+  public var paymentSourceList: [PaymentSource] = []
+  public var workQuantityList: [WorkQuantity] = []
+  public var hakedisRecords: [Hakedis] = []
+  public var hakedisLineList: [HakedisLine] = []
+  public var hakedisAdjustmentList: [HakedisAdjustment] = []
+  /// İmalat kaydı → onu kullanan hakediş (aynı imalat iki kez kullanılamaz).
+  public var quantityLinks: [UUID: UUID] = [:]
+  public var teminatReleaseList: [TeminatRelease] = []
+  public var financePaymentList: [FinancePayment] = []
+  public var financeEventList: [FinanceEvent] = []
+  /// Deftere işlenen hakedişin oluşturduğu cari hareketler (hakediş ve kesintiler).
+  public var postedEntryIds: [UUID: [UUID]] = [:]
   public var today = CalendarDate.today()
   public internal(set) var saveCallCount = 0
   /// Sonraki çağrıda fırlatılacak hata (test için).
@@ -299,7 +317,8 @@ public actor InMemoryBackend {
     Repositories(auth: InMemoryAuth(backend: self), access: InMemoryAccess(backend: self),
                  projects: InMemoryProjects(backend: self), costCenters: InMemoryCostCenters(backend: self),
                  cari: InMemoryCari(backend: self), tasks: InMemoryTasks(backend: self),
-                 workforce: InMemoryWorkforce(backend: self), puantaj: InMemoryPuantaj(backend: self))
+                 workforce: InMemoryWorkforce(backend: self), puantaj: InMemoryPuantaj(backend: self),
+                 contracts: InMemoryContracts(backend: self))
   }
 }
 

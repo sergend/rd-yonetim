@@ -35,7 +35,8 @@ public enum SupabaseEnvironment {
       cari: SupabaseCariRepository(client: client),
       tasks: SupabaseTaskRepository(client: client),
       workforce: SupabaseWorkforceRepository(client: client),
-      puantaj: SupabasePuantajRepository(client: client)
+      puantaj: SupabasePuantajRepository(client: client),
+      contracts: SupabaseContractRepository(client: client)
     )
   }
 

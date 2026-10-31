@@ -139,6 +139,61 @@ public protocol PuantajRepository: Sendable {
   func summary(projectId: UUID, month: PuantajMonth) async throws -> [PuantajServerSummary]
 }
 
+/// Taşeron sözleşmesi, imalat (metraj), hakediş, teminat ve ödeme. Bütün
+/// yazmalar sunucudaki RPC'lerle yapılır; tutarlar sunucuda hesaplanır.
+/// Onaylı kayıtlar değişmez: düzeltme, iptal ve ters kayıtla yapılır.
+public protocol ContractRepository: Sendable {
+  // Sözleşme
+  func contracts(projectId: UUID?) async throws -> [Contract]
+  func versions(contractId: UUID) async throws -> [ContractVersion]
+  func items(versionId: UUID) async throws -> [ContractItem]
+  func taxCodes(versionId: UUID) async throws -> [String]
+  /// Yeni sözleşme (revizyon 0) veya açık taslak revizyonun güncellenmesi.
+  func saveContract(id: UUID, draft: ContractDraft, expectedVersion: Int?) async throws -> Contract
+  func transition(contractId: UUID, action: ContractAction, reason: String?, expectedVersion: Int?) async throws -> Contract
+  func taxRules() async throws -> [TaxRule]
+  func paymentSources() async throws -> [PaymentSource]
+
+  // İmalat (metraj; fiyatsız)
+  func imalatItems(projectId: UUID) async throws -> [ImalatItem]
+  func workQuantities(contractId: UUID) async throws -> [WorkQuantity]
+  func saveWorkQuantity(_ quantity: WorkQuantity) async throws -> WorkQuantity
+  func approveWorkQuantities(ids: [UUID]) async throws -> Int
+  func cancelWorkQuantity(id: UUID, reason: String) async throws -> WorkQuantity
+
+  // Hakediş
+  /// contractId nil ise görülebilen tüm hakedişler.
+  func hakedisList(contractId: UUID?) async throws -> [Hakedis]
+  func hakedis(id: UUID) async throws -> Hakedis
+  func lines(hakedisId: UUID) async throws -> [HakedisLine]
+  func adjustments(hakedisId: UUID) async throws -> [HakedisAdjustment]
+  func puantajLinks(hakedisId: UUID) async throws -> [HakedisPuantajLink]
+  func createHakedis(id: UUID, contractId: UUID, periodStart: CalendarDate, periodEnd: CalendarDate,
+                     note: String?) async throws -> Hakedis
+  func refreshHakedis(id: UUID) async throws -> Hakedis
+  func setProgress(hakedisId: UUID, itemKey: UUID, percent: Decimal) async throws -> Hakedis
+  func setDeduction(hakedisId: UUID, kind: HakedisAdjustmentKind, amount: Decimal,
+                    description: String?) async throws -> Hakedis
+  func overrideLimit(hakedisId: UUID, reason: String) async throws -> Hakedis
+  func transition(hakedisId: UUID, action: HakedisAction, reason: String?, expectedVersion: Int?) async throws -> Hakedis
+  /// Onaylı hakedişi iptal eder ve yerine düzeltme taslağı açar.
+  func revise(hakedisId: UUID, newId: UUID, reason: String) async throws -> Hakedis
+  /// Onaylı hakedişi cari deftere işler (tekrar çağrı ikinci kayıt açmaz).
+  func post(hakedisId: UUID, entryDate: CalendarDate?) async throws -> Hakedis
+
+  // Teminat ve ödeme
+  func teminatReleases(contractId: UUID) async throws -> [TeminatRelease]
+  func releaseTeminat(id: UUID, contractId: UUID, amount: Decimal, reason: String,
+                      date: CalendarDate?) async throws -> TeminatRelease
+  func cancelTeminatRelease(id: UUID, reason: String) async throws -> TeminatRelease
+  func payments(contractId: UUID) async throws -> [FinancePayment]
+  func recordPayment(_ draft: FinancePaymentDraft) async throws -> FinancePayment
+  func cancelPayment(id: UUID, reason: String) async throws -> FinancePayment
+  func financeSummary(contractId: UUID) async throws -> ContractFinanceSummary
+  func paymentStatus(hakedisIds: [UUID]) async throws -> [HakedisPaymentStatus]
+  func events(contractId: UUID) async throws -> [FinanceEvent]
+}
+
 /// Uygulamanın kullandığı tüm repository'ler (bağımlılık enjeksiyonu için).
 public struct Repositories: Sendable {
   public let auth: AuthRepository
@@ -149,10 +204,11 @@ public struct Repositories: Sendable {
   public let tasks: TaskRepository
   public let workforce: WorkforceRepository
   public let puantaj: PuantajRepository
+  public let contracts: ContractRepository
 
   public init(auth: AuthRepository, access: AccessRepository, projects: ProjectRepository,
               costCenters: CostCenterRepository, cari: CariRepository, tasks: TaskRepository,
-              workforce: WorkforceRepository, puantaj: PuantajRepository) {
+              workforce: WorkforceRepository, puantaj: PuantajRepository, contracts: ContractRepository) {
     self.auth = auth
     self.access = access
     self.projects = projects
@@ -161,5 +217,6 @@ public struct Repositories: Sendable {
     self.tasks = tasks
     self.workforce = workforce
     self.puantaj = puantaj
+    self.contracts = contracts
   }
 }
