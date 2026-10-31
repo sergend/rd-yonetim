@@ -116,11 +116,19 @@ struct ProjectDetailView: View {
         .rdRowBackground()
       }
 
-      if app.access.can(.gorevlendirmeRead, in: project.id) {
+      if app.access.can(.gorevlendirmeRead, in: project.id) || app.access.can(.puantajRead, in: project.id) {
         Section("Saha") {
-          NavigationLink(value: AppRoute.projectWorkforce(project)) {
-            RDRow(symbol: AppModule.ekipler.symbol, symbolTint: RDColor.brandText,
-                  title: "Ekip ve personel", subtitle: "Bugün sahada olanlar, taşeronlar ve görevlendirmeler")
+          if app.access.can(.gorevlendirmeRead, in: project.id) {
+            NavigationLink(value: AppRoute.projectWorkforce(project)) {
+              RDRow(symbol: AppModule.ekipler.symbol, symbolTint: RDColor.brandText,
+                    title: "Ekip ve personel", subtitle: "Bugün sahada olanlar, taşeronlar ve görevlendirmeler")
+            }
+          }
+          if app.access.can(.puantajRead, in: project.id) {
+            NavigationLink(value: AppRoute.puantaj(project)) {
+              RDRow(symbol: AppModule.puantaj.symbol, symbolTint: RDColor.brandText,
+                    title: "Puantaj", subtitle: "Aylık tablo, günlük giriş ve onay")
+            }
           }
         }
         .rdRowBackground()

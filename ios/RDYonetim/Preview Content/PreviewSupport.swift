@@ -16,9 +16,11 @@ import SwiftUI
       return app
     }
 
-    /// Sivas projesinde şantiye şefi: finans görmez; projesinin ekip ve personelini görür.
+    /// Sivas projesinde şantiye şefi: finans görmez; projesinin ekip ve personelini
+    /// görür, puantaj girer ama onaylayamaz.
     static let siteChiefGrants = ["proje.read", "proje.write", "is.read", "is.write", "taseron.read", "personel.read",
-                                  "personel_iletisim.read", "gorevlendirme.read", "gorevlendirme.write"].map {
+                                  "personel_iletisim.read", "gorevlendirme.read", "gorevlendirme.write",
+                                  "puantaj.read", "puantaj.write"].map {
       PermissionGrant(projectId: PreviewData.sivas.id, permissionKey: $0)
     }
   }
@@ -128,6 +130,62 @@ import SwiftUI
     PreviewHost(grants: PreviewSupport.siteChiefGrants) { app in
       NavigationStack { ProjectWorkforceView(project: PreviewData.sivas, app: app) }
     }
+  }
+
+  /// Sivas puantajı yüklenmiş view model ile içerik (sayfa ve özet önizlemeleri).
+  struct PuantajPreviewHost<Content: View>: View {
+    var grants: [PermissionGrant]?
+    @ViewBuilder let content: (PuantajViewModel) -> Content
+    @State private var model: PuantajViewModel?
+
+    var body: some View {
+      Group {
+        if let model { content(model) } else { ProgressView() }
+      }
+      .tint(RDColor.brandText)
+      .task {
+        let app = await PreviewSupport.app(grants: grants)
+        let model = PuantajViewModel(project: PreviewData.sivas, access: app.access, repository: app.repositories.puantaj)
+        await model.load()
+        self.model = model
+      }
+    }
+  }
+
+  #Preview("Puantaj · ay tablosu") {
+    PreviewHost { app in NavigationStack { PuantajView(project: PreviewData.sivas, app: app) } }
+  }
+
+  #Preview("Puantaj · ay tablosu · koyu") {
+    PreviewHost { app in NavigationStack { PuantajView(project: PreviewData.sivas, app: app) } }
+      .preferredColorScheme(.dark)
+  }
+
+  #Preview("Puantaj · şantiye şefi · büyük yazı") {
+    PreviewHost(grants: PreviewSupport.siteChiefGrants) { app in
+      NavigationStack { PuantajView(project: PreviewData.sivas, app: app) }
+    }
+    .dynamicTypeSize(.accessibility2)
+  }
+
+  #Preview("Puantaj · hücre") {
+    PuantajPreviewHost { model in
+      PuantajCellSheet(model: model, selection: PuantajCellSelection(
+        personnelId: PreviewData.kalipUstasi.id, day: CalendarDate.today().adding(days: -1)))
+    }
+  }
+
+  #Preview("Puantaj · toplu işlem") {
+    PuantajPreviewHost { model in PuantajBulkSheet(model: model, day: .today()) }
+  }
+
+  #Preview("Puantaj · aylık özet") {
+    PuantajPreviewHost { model in PuantajSummaryView(model: model) }
+  }
+
+  #Preview("Puantaj · ay durumu · koyu") {
+    PuantajPreviewHost { model in PuantajPeriodSheet(model: model) }
+      .preferredColorScheme(.dark)
   }
 
   #Preview("Yeni personel") {

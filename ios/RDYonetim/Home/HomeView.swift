@@ -16,6 +16,8 @@ enum AppRoute: Hashable {
   case crews
   case crew(Crew)
   case projectWorkforce(Project)
+  case puantajProjects
+  case puantaj(Project)
   case placeholder(AppModule)
 }
 
@@ -87,6 +89,8 @@ struct HomeView: View {
     case .crews: CrewListView(app: app)
     case .crew(let crew): CrewDetailView(crew: crew, app: app)
     case .projectWorkforce(let project): ProjectWorkforceView(project: project, app: app)
+    case .puantajProjects: PuantajProjectsView(app: app)
+    case .puantaj(let project): PuantajView(project: project, app: app)
     case .placeholder(let module): ModulePlaceholderView(module: module)
     }
   }
@@ -215,6 +219,7 @@ struct HomeView: View {
     case .ekipler: .crews
     case .cari: .cariList(projectId: nil)
     case .genelGider: .generalExpenses
+    case .puantaj: .puantajProjects
     default: .placeholder(module)
     }
   }

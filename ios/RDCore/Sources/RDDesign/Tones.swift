@@ -53,3 +53,27 @@ public extension EmploymentType {
     }
   }
 }
+
+public extension PuantajStatus {
+  /// Hücre rengi; anlam her zaman kısa harf ve erişilebilirlik metniyle de verilir.
+  var tone: StatusTone {
+    switch self {
+    case .tamGun: .success
+    case .yarimGun: .info
+    case .calismadi: .danger
+    case .ucretliIzin, .raporlu: .warning
+    case .ucretsizIzin, .resmiTatil: .neutral
+    }
+  }
+}
+
+public extension PuantajPeriodStatus {
+  var tone: StatusTone {
+    switch self {
+    case .taslak: .neutral
+    case .incelemede: .info
+    case .onaylandi: .success
+    case .kilitli: .warning
+    }
+  }
+}
