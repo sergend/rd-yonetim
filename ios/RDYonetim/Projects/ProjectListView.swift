@@ -141,6 +141,26 @@ struct ProjectDetailView: View {
         .rdRowBackground()
       }
 
+      if app.access.can(.stokRead, in: project.id) || app.access.can(.satinalmaRead, in: project.id)
+        || app.access.can(.satinalmaWrite, in: project.id) || app.access.can(.satinalmaReceive, in: project.id) {
+        Section("Malzeme ve stok") {
+          if app.access.can(.stokRead, in: project.id) {
+            NavigationLink(value: AppRoute.stock(projectId: project.id)) {
+              RDRow(symbol: AppModule.stoklar.symbol, symbolTint: RDColor.brandText,
+                    title: "Proje deposu", subtitle: "Mevcut stok, giriş, kullanım, transfer ve sayım")
+            }
+          }
+          if app.access.can(.satinalmaRead, in: project.id) || app.access.can(.satinalmaWrite, in: project.id)
+            || app.access.can(.satinalmaReceive, in: project.id) {
+            NavigationLink(value: AppRoute.purchaseOrders(projectId: project.id)) {
+              RDRow(symbol: AppModule.satinAlma.symbol, symbolTint: RDColor.brandText,
+                    title: "Satın alma siparişleri", subtitle: "Sipariş, onay ve parça parça teslim alma")
+            }
+          }
+        }
+        .rdRowBackground()
+      }
+
       if app.access.can(.belgeRead, in: project.id) {
         Section("Belgeler") {
           NavigationLink(value: AppRoute.documents(link: .project(project.id), title: "\(project.code) belgeleri",

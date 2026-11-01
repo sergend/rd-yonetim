@@ -249,6 +249,33 @@ import SwiftUI
     }
   }
 
+  #Preview("Stok · proje deposu") {
+    PreviewHost { app in
+      NavigationStack {
+        StockOverviewView(projectId: PreviewData.sivas.id, app: app)
+          .navigationDestination(for: AppRoute.self) { route in
+            if case .stockMovements(let w, let m) = route { StockMovementListView(warehouseId: w, materialId: m, app: app) }
+          }
+      }
+    }
+  }
+
+  #Preview("Stok · şantiye şefi") {
+    PreviewHost(grants: PreviewSupport.siteChiefGrants + ["stok.read", "stok.write", "satinalma.receive"].map {
+      PermissionGrant(projectId: PreviewData.sivas.id, permissionKey: $0)
+    }) { app in
+      NavigationStack { StockOverviewView(projectId: PreviewData.sivas.id, app: app) }
+    }
+  }
+
+  #Preview("Satın alma") {
+    PreviewHost { app in NavigationStack { PurchaseOrderListView(projectId: nil, app: app) } }
+  }
+
+  #Preview("Malzeme kataloğu") {
+    PreviewHost { app in NavigationStack { MaterialCatalogView(app: app) } }
+  }
+
   #Preview("Yeni personel") {
     PersonnelFormView(model: PersonnelFormViewModel(repository: InMemoryBackend().repositories.workforce),
                       showsPhone: true) { _ in }

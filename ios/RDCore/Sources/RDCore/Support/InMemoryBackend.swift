@@ -62,6 +62,23 @@ public actor InMemoryBackend {
   public var dropNextUploadResponse = false
   /// Test: bir sonraki yüklemede dosya yolda bozulur (aynı boyut ve tür, farklı içerik).
   public var corruptNextUpload = false
+  // Aşama 7 (bkz. InMemoryInventory.swift)
+  public var materialUnitList: [MaterialUnit] = []
+  public var materialCategoryList: [MaterialCategory] = []
+  public var materialList: [Material] = []
+  public var conversionList: [MaterialUnitConversion] = []
+  public var warehouseList: [Warehouse] = []
+  public var stockMovementList: [StockMovement] = []
+  /// Değiştirilemez stok defteri (işaretli miktar, temel birim).
+  public var stockLedger: [StockLedgerEntry] = []
+  public var purchaseOrderList: [PurchaseOrder] = []
+  public var purchaseOrderLineStore: [StoredPurchaseOrderLine] = []
+  public var purchaseReceiptList: [PurchaseReceipt] = []
+  public var purchaseReceiptLineList: [PurchaseReceiptLine] = []
+  public var purchaseExpenseLinkList: [PurchaseOrderExpenseLink] = []
+  public var purchaseDocumentLinkList: [PurchaseOrderDocumentLink] = []
+  public var purchaseEventList: [PurchaseOrderEvent] = []
+  public var inventorySequence = 0
   public var today = CalendarDate.today()
   public internal(set) var saveCallCount = 0
   /// Sonraki çağrıda fırlatılacak hata (test için).
@@ -340,7 +357,7 @@ public actor InMemoryBackend {
                  cari: InMemoryCari(backend: self), tasks: InMemoryTasks(backend: self),
                  workforce: InMemoryWorkforce(backend: self), puantaj: InMemoryPuantaj(backend: self),
                  contracts: InMemoryContracts(backend: self), finance: InMemoryFinance(backend: self),
-                 documents: InMemoryDocuments(backend: self))
+                 documents: InMemoryDocuments(backend: self), inventory: InMemoryInventory(backend: self))
   }
 }
 

@@ -282,3 +282,87 @@ begin
   perform set_config('request.jwt.claims', '', true);
 end;
 $$;
+
+-- =============================================================================
+-- Malzeme, stok ve satın alma (Aşama 7). Hayali tedarikçi ve miktarlar.
+--   SA-1 (DEMO-C06, Sivas): 160 plywood + 200 demir direk; iki teslimde
+--        tamamı alındı. 40 plywood kullanıldı, 10 plywood DEMO-01 deposuna
+--        aktarıldı → Sivas'ta 110 plywood kalır.
+--   SA-2 (DEMO-C03, Sivas): 12 ton inşaat demiri (1 ton = 1000 kg, tanımlı
+--        oran); 5 ton teslim alındı (kısmi). Aşama 5'teki demir faturası
+--        (GD-000001) bu siparişe bağlı: finans kaydı değişmez.
+--   SA-3 (DEMO-C02, Sivas): 300 torba çimento, taslak.
+--   Şantiye şefinin 20 demir direk kullanımı onay bekliyor.
+-- =============================================================================
+do $$
+declare
+  v_admin   uuid := '00000000-0000-4000-8000-000000000001';
+  v_sef     uuid := '00000000-0000-4000-8000-000000000002';
+  v_sivas   uuid := (select id from public.projects where code = 'DEMO-SVS');
+  v_demo01  uuid := (select id from public.projects where code = 'DEMO-01');
+  v_w_svs   uuid := (select id from public.warehouses where project_id = (select id from public.projects where code = 'DEMO-SVS') and is_default);
+  v_w_d01   uuid := (select id from public.warehouses where project_id = (select id from public.projects where code = 'DEMO-01') and is_default);
+  v_plywood uuid := (select id from public.materials where name = 'Plywood');
+  v_direk   uuid := (select id from public.materials where name = 'Demir direk');
+  v_demir   uuid := (select id from public.materials where name = 'İnşaat demiri');
+  v_cimento uuid := (select id from public.materials where name = 'Çimento');
+  v_ton     uuid := (select id from public.material_units where code = 'ton');
+  v_kalip   uuid;
+begin
+  insert into public.cari_accounts (code, title, type, is_demo)
+  values ('DEMO-C06', 'Örnek Kalıp Malzemesi Tedarikçisi', 'tedarikci', true)
+  returning id into v_kalip;
+
+  perform set_config('request.jwt.claims', json_build_object('sub', v_admin, 'role', 'authenticated')::text, true);
+
+  perform public.save_warehouse('00000000-0000-4000-8000-000000000201', 'DEMO Merkez depo', null, true,
+                                p_notes => 'Şirketin ortak malzemeleri (demo)');
+  perform public.save_material_unit_conversion('00000000-0000-4000-8000-000000000211', v_demir, v_ton, 1000,
+                                               'Ağırlık: 1 ton = 1000 kg');
+
+  perform public.save_purchase_order('00000000-0000-4000-8000-000000000301', v_kalip, v_w_svs,
+    jsonb_build_array(
+      jsonb_build_object('id', '00000000-0000-4000-8000-000000000311', 'material_id', v_plywood, 'quantity', 160,
+                         'unit_price', 850),
+      jsonb_build_object('id', '00000000-0000-4000-8000-000000000312', 'material_id', v_direk, 'quantity', 200,
+                         'unit_price', 320)),
+    p_order_date => '2026-10-01', p_expected_date => '2026-10-10', p_description => 'B blok kalıp malzemesi (demo)');
+  perform public.purchase_order_transition('00000000-0000-4000-8000-000000000301', 'onayla');
+  perform public.receive_purchase_order('00000000-0000-4000-8000-000000000321', '00000000-0000-4000-8000-000000000301',
+    jsonb_build_array(jsonb_build_object('order_line_id', '00000000-0000-4000-8000-000000000311', 'quantity', 100),
+                      jsonb_build_object('order_line_id', '00000000-0000-4000-8000-000000000312', 'quantity', 200)),
+    p_receipt_date => '2026-10-05', p_waybill_no => 'IRS-2201', p_performed_by => 'Deneme Şantiye Şefi');
+  perform public.receive_purchase_order('00000000-0000-4000-8000-000000000322', '00000000-0000-4000-8000-000000000301',
+    jsonb_build_array(jsonb_build_object('order_line_id', '00000000-0000-4000-8000-000000000311', 'quantity', 60)),
+    p_receipt_date => '2026-10-08', p_waybill_no => 'IRS-2240');
+
+  perform public.create_stock_movement('00000000-0000-4000-8000-000000000331', 'kullanim', v_plywood, v_w_svs, 40,
+    p_movement_date => '2026-10-12', p_description => 'B blok 3. kat döşeme kalıbı', p_performed_by => 'Kalıp Ekibi');
+  perform public.create_stock_movement('00000000-0000-4000-8000-000000000332', 'transfer', v_plywood, v_w_svs, 10,
+    p_target_warehouse_id => v_w_d01, p_movement_date => '2026-10-14', p_description => 'Deneme Konut kalıbı için');
+
+  perform public.save_purchase_order('00000000-0000-4000-8000-000000000302', (select id from public.cari_accounts where code = 'DEMO-C03'),
+    v_w_svs,
+    jsonb_build_array(jsonb_build_object('id', '00000000-0000-4000-8000-000000000313', 'material_id', v_demir,
+                                         'quantity', 12, 'unit_id', v_ton, 'unit_price', 20000)),
+    p_order_date => '2026-10-01', p_description => 'Ø12 nervürlü demir (demo)');
+  perform public.purchase_order_transition('00000000-0000-4000-8000-000000000302', 'onayla');
+  perform public.receive_purchase_order('00000000-0000-4000-8000-000000000323', '00000000-0000-4000-8000-000000000302',
+    jsonb_build_array(jsonb_build_object('order_line_id', '00000000-0000-4000-8000-000000000313', 'quantity', 5)),
+    p_receipt_date => '2026-10-03', p_waybill_no => 'DMR-IRS-77');
+  perform public.link_purchase_order_expense('00000000-0000-4000-8000-000000000341', '00000000-0000-4000-8000-000000000302',
+    '00000000-0000-4000-8000-000000000101', 'Demir faturası DMR-2026-118');
+
+  perform public.save_purchase_order('00000000-0000-4000-8000-000000000303', (select id from public.cari_accounts where code = 'DEMO-C02'),
+    v_w_svs,
+    jsonb_build_array(jsonb_build_object('id', '00000000-0000-4000-8000-000000000314', 'material_id', v_cimento,
+                                         'quantity', 300)),
+    p_expected_date => private.today() + 7, p_description => 'Sıva için çimento (demo)');
+
+  perform set_config('request.jwt.claims', json_build_object('sub', v_sef, 'role', 'authenticated')::text, true);
+  perform public.create_stock_movement('00000000-0000-4000-8000-000000000333', 'kullanim', v_direk, v_w_svs, 20,
+    p_description => 'A blok perde iskelesi', p_performed_by => 'Kalıp Ekibi');
+
+  perform set_config('request.jwt.claims', '', true);
+end;
+$$;

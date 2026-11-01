@@ -59,6 +59,18 @@ public enum PermissionKey: String, Sendable, CaseIterable {
   case belgeFinansRead = "belge.finans_read"
   case belgeWrite = "belge.write"
   case belgeManage = "belge.manage"
+  // Aşama 7: malzeme, stok ve satın alma. Stok izinleri tutar göstermez;
+  // satın alma onayı ve iptali stok izinlerinden ayrıdır.
+  case stokRead = "stok.read"
+  case stokWrite = "stok.write"
+  case stokApprove = "stok.approve"
+  case stokCancel = "stok.cancel"
+  case malzemeManage = "malzeme.manage"
+  case satinalmaRead = "satinalma.read"
+  case satinalmaWrite = "satinalma.write"
+  case satinalmaApprove = "satinalma.approve"
+  case satinalmaReceive = "satinalma.receive"
+  case satinalmaCancel = "satinalma.cancel"
 }
 
 /// my_permissions() RPC satırı: project_id boşsa genel izin.

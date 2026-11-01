@@ -266,6 +266,68 @@ public protocol DocumentRepository: Sendable {
   func relink(id: UUID, to link: DocumentLink, reason: String, expectedVersion: Int) async throws -> ArchiveDocument
 }
 
+/// Malzeme kataloğu, depolar, stok hareketleri ve satın alma. Yazmalar
+/// yalnızca RPC'lerle yapılır; stok miktarı defterden hesaplanır. Kimlikler
+/// istemcide üretilir: aynı kimlikle aynı istek aynı kaydı döner, farklı
+/// içerik `.conflict` alır. Bu arayüzdeki hiçbir çağrı cari borç, gider veya
+/// ödeme oluşturmaz.
+public protocol InventoryRepository: Sendable {
+  // Katalog
+  func units(includeInactive: Bool) async throws -> [MaterialUnit]
+  func saveUnit(_ unit: MaterialUnit) async throws -> MaterialUnit
+  func categories(includeInactive: Bool) async throws -> [MaterialCategory]
+  func saveCategory(_ category: MaterialCategory) async throws -> MaterialCategory
+  func materials(search: String?, categoryId: UUID?, includeInactive: Bool) async throws -> [Material]
+  func material(id: UUID) async throws -> Material
+  /// expectedVersion nil: yeni malzeme (tekrar gönderim aynı kaydı döner).
+  func saveMaterial(id: UUID, draft: MaterialDraft, expectedVersion: Int?) async throws -> Material
+  func conversions(materialId: UUID?) async throws -> [MaterialUnitConversion]
+  func saveConversion(_ conversion: MaterialUnitConversion) async throws -> MaterialUnitConversion
+  func setConversionActive(id: UUID, isActive: Bool) async throws -> MaterialUnitConversion
+
+  // Depolar
+  /// projectId nil ise görülebilen tüm depolar.
+  func warehouses(projectId: UUID?, includeInactive: Bool) async throws -> [Warehouse]
+  func saveWarehouse(id: UUID, draft: WarehouseDraft, expectedVersion: Int?) async throws -> Warehouse
+
+  // Stok
+  func balances(warehouseId: UUID?) async throws -> [StockBalance]
+  func pending(warehouseId: UUID?) async throws -> [StockPending]
+  func movements(filter: StockMovementFilter) async throws -> [StockMovement]
+  func movement(id: UUID) async throws -> StockMovement
+  /// Kaydedenin tüm depolarda onay yetkisi varsa hemen stoka işlenir.
+  func createMovement(_ draft: StockMovementDraft) async throws -> StockMovement
+  func approveMovement(id: UUID, expectedVersion: Int?) async throws -> StockMovement
+  /// Kaydeden geri çeker veya onaylayan reddeder (gerekçe zorunlu).
+  func rejectMovement(id: UUID, reason: String) async throws -> StockMovement
+  /// Silme yoktur: onaylı hareket ters kayıtla iptal edilir. Dönen değer ters kayıttır.
+  func reverseMovement(id: UUID, reversalId: UUID, reason: String) async throws -> StockMovement
+  func summary(warehouseId: UUID, from: CalendarDate?, to: CalendarDate?) async throws -> [StockSummaryRow]
+
+  // Satın alma
+  func purchaseOrders(projectId: UUID?, status: PurchaseOrderStatus?) async throws -> [PurchaseOrder]
+  func purchaseOrder(id: UUID) async throws -> PurchaseOrder
+  func purchaseOrderLines(orderId: UUID) async throws -> [PurchaseOrderLine]
+  /// Yalnızca satinalma.read ile; yetki yoksa `.forbidden`.
+  func purchaseOrderPrices(orderId: UUID) async throws -> [PurchaseOrderLinePrice]
+  /// expectedVersion nil: yeni sipariş. Dolu: taslak güncellemesi.
+  func savePurchaseOrder(id: UUID, draft: PurchaseOrderDraft, expectedVersion: Int?) async throws -> PurchaseOrder
+  func transition(orderId: UUID, action: PurchaseOrderAction, reason: String?, expectedVersion: Int?) async throws -> PurchaseOrder
+  func receipts(orderId: UUID) async throws -> [PurchaseReceipt]
+  func receiptLines(receiptId: UUID) async throws -> [PurchaseReceiptLine]
+  /// Teslim miktarı kalan miktarı aşamaz; tekrar gönderim ikinci giriş açmaz.
+  func receive(_ draft: PurchaseReceiptDraft) async throws -> PurchaseReceipt
+  func cancelReceipt(id: UUID, reason: String) async throws -> PurchaseReceipt
+  func expenseLinks(orderId: UUID?, financeDocumentId: UUID?) async throws -> [PurchaseOrderExpenseLink]
+  /// Var olan gider belgesini siparişe bağlar; finans kaydını değiştirmez.
+  func linkExpense(id: UUID, orderId: UUID, financeDocumentId: UUID, note: String?) async throws -> PurchaseOrderExpenseLink
+  func unlinkExpense(id: UUID, reason: String) async throws -> PurchaseOrderExpenseLink
+  func documentLinks(orderId: UUID) async throws -> [PurchaseOrderDocumentLink]
+  func linkDocument(id: UUID, orderId: UUID, documentId: UUID) async throws -> PurchaseOrderDocumentLink
+  func unlinkDocument(id: UUID, reason: String) async throws -> PurchaseOrderDocumentLink
+  func events(orderId: UUID) async throws -> [PurchaseOrderEvent]
+}
+
 /// Uygulamanın kullandığı tüm repository'ler (bağımlılık enjeksiyonu için).
 public struct Repositories: Sendable {
   public let auth: AuthRepository
@@ -279,11 +341,13 @@ public struct Repositories: Sendable {
   public let contracts: ContractRepository
   public let finance: FinanceRepository
   public let documents: DocumentRepository
+  public let inventory: InventoryRepository
 
   public init(auth: AuthRepository, access: AccessRepository, projects: ProjectRepository,
               costCenters: CostCenterRepository, cari: CariRepository, tasks: TaskRepository,
               workforce: WorkforceRepository, puantaj: PuantajRepository, contracts: ContractRepository,
-              finance: FinanceRepository, documents: DocumentRepository) {
+              finance: FinanceRepository, documents: DocumentRepository,
+              inventory: InventoryRepository) {
     self.auth = auth
     self.access = access
     self.projects = projects
@@ -295,5 +359,6 @@ public struct Repositories: Sendable {
     self.contracts = contracts
     self.finance = finance
     self.documents = documents
+    self.inventory = inventory
   }
 }

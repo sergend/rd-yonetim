@@ -4,7 +4,8 @@ import Foundation
 /// gösterilir ve veri girişi sunmaz.
 public enum AppModule: String, CaseIterable, Identifiable, Sendable {
   case projeler, isTakibi, taseronlar, personel, ekipler, cari, genelGider
-  case puantaj, imalat, taseronSozlesmeleri, hakedis, giderler, borclar, gelirler, raporlar, belgeler, daireler, kullanicilar
+  case puantaj, imalat, taseronSozlesmeleri, hakedis, giderler, borclar, gelirler, raporlar, belgeler
+  case malzemeler, stoklar, satinAlma, daireler, kullanicilar
 
   public var id: String { rawValue }
 
@@ -27,6 +28,9 @@ public enum AppModule: String, CaseIterable, Identifiable, Sendable {
     case .daireler: "Daireler ve satış"
     case .raporlar: "Gider ve gelir raporları"
     case .belgeler: "Belgeler"
+    case .malzemeler: "Malzeme kataloğu"
+    case .stoklar: "Stoklar ve depolar"
+    case .satinAlma: "Satın alma siparişleri"
     case .kullanicilar: "Kullanıcılar ve yetkiler"
     }
   }
@@ -51,6 +55,9 @@ public enum AppModule: String, CaseIterable, Identifiable, Sendable {
     case .daireler: "house"
     case .raporlar: "chart.bar.doc.horizontal"
     case .belgeler: "doc.on.doc"
+    case .malzemeler: "shippingbox"
+    case .stoklar: "archivebox"
+    case .satinAlma: "cart.badge.plus"
     case .kullanicilar: "person.badge.key"
     }
   }
@@ -58,7 +65,8 @@ public enum AppModule: String, CaseIterable, Identifiable, Sendable {
   public var isAvailable: Bool {
     switch self {
     case .projeler, .isTakibi, .taseronlar, .personel, .ekipler, .puantaj, .cari, .genelGider,
-         .imalat, .taseronSozlesmeleri, .hakedis, .giderler, .borclar, .gelirler, .raporlar, .belgeler: true
+         .imalat, .taseronSozlesmeleri, .hakedis, .giderler, .borclar, .gelirler, .raporlar, .belgeler,
+         .malzemeler, .stoklar, .satinAlma: true
     default: false
     }
   }
@@ -82,6 +90,8 @@ public enum AppModule: String, CaseIterable, Identifiable, Sendable {
     case .daireler: .projeRead
     case .raporlar: .finansRaporRead
     case .belgeler: .belgeRead
+    case .malzemeler, .stoklar: .stokRead
+    case .satinAlma: .satinalmaRead
     case .kullanicilar: .kullaniciManage
     }
   }
@@ -92,6 +102,12 @@ public enum AppModule: String, CaseIterable, Identifiable, Sendable {
     // Gider girişi: yazma (şantiye hızlı giriş) veya okuma izni yeter.
     case .giderler: access.canAnywhere(.giderWrite) || access.canAnywhere(.giderRead)
     case .gelirler: access.canAnywhere(.gelirRead) || access.canAnywhere(.gelirWrite)
+    // Katalog: stok veya satın alma izni olan herkes görür.
+    case .malzemeler:
+      access.canAnywhere(.stokRead) || access.canAnywhere(.malzemeManage) || access.canAnywhere(.satinalmaRead)
+    // Satın alma: okuma, sipariş hazırlama veya teslim alma izni.
+    case .satinAlma:
+      access.canAnywhere(.satinalmaRead) || access.canAnywhere(.satinalmaWrite) || access.canAnywhere(.satinalmaReceive)
     default: access.canAnywhere(requiredPermission)
     }
   }

@@ -31,6 +31,9 @@ psql "$target" -X -q -v ON_ERROR_STOP=1 -c 'select private.post_restore()' > /de
 
 psql "$target" -X -A -t -v ON_ERROR_STOP=1 -f "$here/row-counts.sql"  > "$dir/restored-row-counts.txt"
 psql "$target" -X -A -t -v ON_ERROR_STOP=1 -f "$here/security-state.sql" > "$dir/restored-security-state.txt"
+if [ -f "$dir/stock-state.txt" ]; then
+  psql "$target" -X -A -t -v ON_ERROR_STOP=1 -f "$here/stock-state.sql" > "$dir/restored-stock-state.txt"
+fi
 
 # Belge bilgileri (yol, boyut, SHA-256) yedekle aynı olmalı. Dosya içerikleri
 # veritabanında değildir; storage-restore.sh ile ayrıca geri yüklenip doğrulanır.
@@ -50,6 +53,14 @@ if diff -u "$dir/security-state.txt" "$dir/restored-security-state.txt"; then
 else
   echo "HATA: geri yüklenen güvenlik durumu yedekle uyuşmuyor." >&2
   status=1
+fi
+if [ -f "$dir/stock-state.txt" ]; then
+  if diff -u "$dir/stock-state.txt" "$dir/restored-stock-state.txt"; then
+    echo "Stok: $(grep -c '^stock:' "$dir/stock-state.txt" || true) depo/malzeme miktarı, bekleyen hareketler ve sipariş teslimleri yedekle aynı."
+  else
+    echo "HATA: geri yüklenen stok miktarları yedekle uyuşmuyor." >&2
+    status=1
+  fi
 fi
 if [ -f "$dir/storage-manifest.tsv" ]; then
   if diff -u "$dir/storage-manifest.tsv" "$dir/restored-storage-manifest.tsv"; then

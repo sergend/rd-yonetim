@@ -132,3 +132,27 @@ public extension FinanceSettlementState {
     }
   }
 }
+
+// MARK: Aşama 7: stok ve satın alma
+
+public extension StockMovementStatus {
+  var tone: StatusTone {
+    switch self {
+    case .bekliyor: .warning
+    case .onaylandi: .success
+    case .reddedildi: .neutral
+    }
+  }
+}
+
+public extension PurchaseOrderStatus {
+  var tone: StatusTone {
+    switch self {
+    case .taslak: .neutral
+    case .onaylandi: .info
+    case .kismiTeslim: .warning
+    case .tamamlandi: .success
+    case .iptal: .neutral
+    }
+  }
+}

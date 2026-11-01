@@ -18,7 +18,8 @@ Mimari: [Teknik Mimari Önerisi](https://claude.ai/artifact/6gdNhhjhSuDdodf55R3d
 | 3 | Puantaj: aylık tablo, hızlı giriş, özet, onay ve kilit (finansal yükümlülük üretmez) | Tamamlandı |
 | 4 | Taşeron sözleşmesi, imalat (metraj), hakediş, teminat, cari deftere işleme ve ödeme | Tamamlandı |
 | 5 | Şirket gider, gelir ve borç/alacak: onay, kısmi ödeme/tahsilat, bekleyen borçlar, raporlar | Tamamlandı |
-| 6 | Evrak arşivi: tarama, fotoğraf/PDF, özel Storage, SHA-256 bütünlük, dosya yedeği ve geri yükleme testi | İncelemede |
+| 6 | Evrak arşivi: tarama, fotoğraf/PDF, özel Storage, SHA-256 bütünlük, dosya yedeği ve geri yükleme testi | Tamamlandı |
+| 7 | Malzeme kataloğu, proje ve genel depolar, stok hareketleri (giriş, kullanım, transfer, iade, sayım), satın alma siparişi ve parça parça teslim alma (finansa çift kayıt yok) | İncelemede |
 
 ## Yedekleme durumu (önemli)
 
@@ -72,6 +73,8 @@ npx supabase db reset      # sıfırdan kur
 iOS uygulamasını Mac'te açma ve test etme: [docs/ios-mac-setup.md](docs/ios-mac-setup.md).
 Gider/gelir kuralları: [docs/gider-gelir-hesaplama.md](docs/gider-gelir-hesaplama.md).
 Evrak arşivi kararları: [docs/decisions/0007-asama-6-kararlari.md](docs/decisions/0007-asama-6-kararlari.md).
+Stok ve satın alma kuralları: [docs/stok-satinalma.md](docs/stok-satinalma.md), kararlar
+[docs/decisions/0008-asama-7-kararlari.md](docs/decisions/0008-asama-7-kararlari.md).
 Tasarım sistemi: [docs/design-system.md](docs/design-system.md). Logo ve ikon: [docs/brand-assets.md](docs/brand-assets.md).
 
 ## Güvenlik kuralları

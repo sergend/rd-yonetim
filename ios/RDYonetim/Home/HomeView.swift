@@ -31,6 +31,13 @@ enum AppRoute: Hashable {
   case financeCategories
   case documents(link: DocumentLink?, title: String?, projectId: UUID?)
   case archiveDocument(ArchiveDocument)
+  case materials
+  case material(RDCore.Material)
+  case stock(projectId: UUID?)
+  case stockMovements(warehouseId: UUID?, materialId: UUID?)
+  case stockMovement(StockMovement)
+  case purchaseOrders(projectId: UUID?)
+  case purchaseOrder(PurchaseOrder)
   case placeholder(AppModule)
 }
 
@@ -118,6 +125,14 @@ struct HomeView: View {
     case .documents(let link, let title, let projectId):
       DocumentListView(link: link, linkTitle: title, projectId: projectId, app: app)
     case .archiveDocument(let document): DocumentDetailView(document: document, app: app)
+    case .materials: MaterialCatalogView(app: app)
+    case .material(let material): MaterialDetailView(material: material, app: app)
+    case .stock(let projectId): StockOverviewView(projectId: projectId, app: app)
+    case .stockMovements(let warehouseId, let materialId):
+      StockMovementListView(warehouseId: warehouseId, materialId: materialId, app: app)
+    case .stockMovement(let movement): StockMovementDetailView(movement: movement, app: app)
+    case .purchaseOrders(let projectId): PurchaseOrderListView(projectId: projectId, app: app)
+    case .purchaseOrder(let order): PurchaseOrderDetailView(order: order, app: app)
     case .placeholder(let module): ModulePlaceholderView(module: module)
     }
   }
@@ -255,6 +270,9 @@ struct HomeView: View {
     case .gelirler: .financeList(.gelir, projectId: nil)
     case .raporlar: .financeReports
     case .belgeler: .documents(link: nil, title: nil, projectId: nil)
+    case .malzemeler: .materials
+    case .stoklar: .stock(projectId: nil)
+    case .satinAlma: .purchaseOrders(projectId: nil)
     default: .placeholder(module)
     }
   }
