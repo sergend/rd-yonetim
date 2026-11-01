@@ -482,6 +482,112 @@ final class PurchaseOrderTests: XCTestCase {
     XCTAssertEqual(docsAfter, docsBefore, "bağlantı gider kaydını değiştirmez")
   }
 
+  // MARK: Bağlantı bütünlüğü (PR #9 incelemesi)
+
+  private func draftExpense(_ f: Fixture, _ category: FinanceCategory, project: Project? = nil, cari: UUID?,
+                            amount: Decimal = 1_000) -> FinanceDocumentDraft {
+    FinanceDocumentDraft(kind: .gider, scope: .project((project ?? f.project).id), categoryId: category.id,
+                         description: "Plywood faturası", amount: amount, documentDate: Fixture.today, cariAccountId: cari)
+  }
+
+  func testLinkedExpenseScopeIsProtectedAfterLinking() async throws {
+    let f = await Fixture()
+    let category = FinanceCategory(kind: .gider, name: "Malzeme")
+    let otherSupplier = CariAccount(code: "C-3", title: "Başka Tedarik", type: .tedarikci)
+    await f.backend.seed(accounts: [otherSupplier])
+    await f.backend.seedFinance(categories: [category])
+    let order = try await f.approvedOrder([PurchaseOrderLineDraft(materialId: f.plywood.id, quantity: 10)])
+    let expenseId = UUID()
+    var expense = try await f.repos.finance.saveDocument(id: expenseId, draft: draftExpense(f, category, cari: f.supplier.id),
+                                                         expectedVersion: nil)
+    let link = try await f.repo.linkExpense(id: UUID(), orderId: order.id, financeDocumentId: expenseId, note: "Fatura")
+
+    let version = expense.version
+    await assertThrows(isValidation, "bağlı taslak başka projeye taşınamaz") {
+      try await f.repos.finance.saveDocument(id: expenseId, draft: self.draftExpense(f, category, project: f.other, cari: f.supplier.id),
+                                             expectedVersion: version)
+    }
+    await assertThrows(isValidation, "bağlı taslağın tedarikçisi değiştirilemez") {
+      try await f.repos.finance.saveDocument(id: expenseId, draft: self.draftExpense(f, category, cari: otherSupplier.id),
+                                             expectedVersion: version)
+    }
+    expense = try await f.repos.finance.saveDocument(id: expenseId, draft: draftExpense(f, category, cari: nil, amount: 1_200),
+                                                     expectedVersion: version)
+    XCTAssertEqual(expense.amount, 1_200, "aynı kapsamda düzenleme serbest")
+    await assertThrows(isValidation, "gider bağlı sipariş iptal edilemez") {
+      try await f.repo.transition(orderId: order.id, action: .iptal, reason: "Tedarikçi teslim edemedi", expectedVersion: nil)
+    }
+
+    _ = try await f.repos.finance.approve(id: expenseId, expectedVersion: nil, settlementId: nil)
+    let revisedId = UUID()
+    _ = try await f.repos.finance.revise(id: expenseId, newId: revisedId, reason: "Fatura tutarı hatalı girildi")
+    let links = try await f.repo.expenseLinks(orderId: order.id, financeDocumentId: nil)
+    XCTAssertEqual(links.first { $0.id == link.id }?.status, .iptal, "düzeltilen giderin bağlantısı sona erer")
+    XCTAssertEqual(links.filter { $0.status == .aktif }.map(\.financeDocumentId), [revisedId], "bağlantı yeni taslağa taşınır")
+
+    _ = try await f.repos.finance.cancel(id: revisedId, reason: "Fatura reddedildi")
+    let afterCancel = try await f.repo.expenseLinks(orderId: order.id, financeDocumentId: nil)
+    XCTAssertFalse(afterCancel.contains { $0.status == .aktif }, "iptal edilen giderin etkin bağlantısı kalmaz")
+    _ = try await f.repo.transition(orderId: order.id, action: .iptal, reason: "Sipariş artık gerekli değil", expectedVersion: nil)
+  }
+
+  func testLinkedDocumentCannotMoveToAnotherProject() async throws {
+    let f = await Fixture()
+    let order = try await f.approvedOrder([PurchaseOrderLineDraft(materialId: f.plywood.id, quantity: 1)])
+    let doc = ArchiveDocument(id: UUID(), kind: .irsaliye, title: "İrsaliye", documentDate: Fixture.today, linkType: .proje,
+                              projectId: f.project.id, mimeType: .pdf, byteSize: 10, sha256: String(repeating: "a", count: 64),
+                              storagePath: "x/y.pdf", status: .yuklendi, uploadedAt: Date())
+    await f.backend.seedArchiveDocument(doc)
+    let link = try await f.repo.linkDocument(id: UUID(), orderId: order.id, documentId: doc.id)
+    await assertThrows(isValidation, "bağlı belge başka projeye taşınamaz") {
+      try await f.repos.documents.relink(id: doc.id, to: .project(f.other.id), reason: "Yanlış projeye yüklenmiş",
+                                         expectedVersion: doc.version)
+    }
+    _ = try await f.repo.unlinkDocument(id: link.id, reason: "Yanlış belge")
+    let moved = try await f.repos.documents.relink(id: doc.id, to: .project(f.other.id), reason: "Yanlış projeye yüklenmiş",
+                                                   expectedVersion: doc.version)
+    XCTAssertEqual(moved.projectId, f.other.id, "bağlantısı kaldırılan belge taşınır")
+
+    let doc2 = ArchiveDocument(id: UUID(), kind: .irsaliye, title: "İrsaliye 2", documentDate: Fixture.today, linkType: .proje,
+                               projectId: f.project.id, mimeType: .pdf, byteSize: 10, sha256: String(repeating: "c", count: 64),
+                               storagePath: "x/w.pdf", status: .yuklendi, uploadedAt: Date())
+    await f.backend.seedArchiveDocument(doc2)
+    _ = try await f.repo.linkDocument(id: UUID(), orderId: order.id, documentId: doc2.id)
+    _ = try await f.repos.documents.cancel(id: doc2.id, reason: "Yanlış irsaliye yüklendi")
+    let links = try await f.repo.documentLinks(orderId: order.id)
+    XCTAssertFalse(links.contains { $0.documentId == doc2.id && $0.status == .aktif }, "iptal edilen belgenin bağlantısı sona erer")
+  }
+
+  func testReplayComparesReceiverAndLinkNote() async throws {
+    let f = await Fixture()
+    let category = FinanceCategory(kind: .gider, name: "Malzeme")
+    await f.backend.seedFinance(categories: [category])
+    let line = PurchaseOrderLineDraft(materialId: f.plywood.id, quantity: 10)
+    let order = try await f.approvedOrder([line])
+    let receipt = PurchaseReceiptDraft(orderId: order.id, lines: [PurchaseReceiptLineInput(orderLineId: line.id, quantity: 4)],
+                                       performedBy: "Ali Usta")
+    _ = try await f.repo.receive(receipt)
+    var same = receipt
+    same.performedBy = " Ali Usta "
+    let replay = try await f.repo.receive(same)
+    XCTAssertEqual(replay.id, receipt.id, "aynı teslim alan kişi aynı teslimi döner")
+    var other = receipt
+    other.performedBy = "Veli Usta"
+    await assertThrows(isConflict, "farklı teslim alan kişi") { try await f.repo.receive(other) }
+    let stock = await f.stock(f.w1, f.plywood)
+    XCTAssertEqual(stock, 4)
+
+    let expense = try await f.repos.finance.saveDocument(id: UUID(), draft: draftExpense(f, category, cari: f.supplier.id),
+                                                         expectedVersion: nil)
+    let linkId = UUID()
+    _ = try await f.repo.linkExpense(id: linkId, orderId: order.id, financeDocumentId: expense.id, note: "İlk not")
+    let again = try await f.repo.linkExpense(id: linkId, orderId: order.id, financeDocumentId: expense.id, note: " İlk not ")
+    XCTAssertEqual(again.id, linkId)
+    await assertThrows(isConflict, "farklı not") {
+      try await f.repo.linkExpense(id: linkId, orderId: order.id, financeDocumentId: expense.id, note: "Başka not")
+    }
+  }
+
   func testDocumentLinkDoesNotChangeFinance() async throws {
     let f = await Fixture()
     let order = try await f.approvedOrder([PurchaseOrderLineDraft(materialId: f.plywood.id, quantity: 1)])

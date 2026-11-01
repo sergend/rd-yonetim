@@ -264,4 +264,70 @@ final class InventoryRepositoryTests: XCTestCase {
     let after = try await repos.finance.document(id: expense101)
     XCTAssertEqual(after, before, "bağlantı denemesi gider kaydını değiştirmez")
   }
+
+  // MARK: PR #9 incelemesi: bağlantı bütünlüğü ve tekrar gönderim
+
+  func testLinkedExpenseKeepsSupplierAndReplayComparesAllFields() async throws {
+    let repos = try await signedIn("yonetici@example.test")
+    let plywood = try await material(repos, "Plywood")
+    let projects = try await repos.projects.list(includeCompleted: true)
+    let sivas = try XCTUnwrap(projects.first { $0.code == "DEMO-SVS" })
+    let sivasWarehouses = try await repos.inventory.warehouses(projectId: sivas.id, includeInactive: false)
+    let main = try XCTUnwrap(sivasWarehouses.first(where: \.isDefault))
+    let suppliers = try await repos.cari.listAccounts(type: nil, search: nil)
+    let supplier = try XCTUnwrap(suppliers.first { $0.code == "DEMO-C06" })
+    let otherSupplier = try XCTUnwrap(suppliers.first { $0.code == "DEMO-C03" })
+    let categories = try await repos.finance.categories(kind: .gider, includeInactive: false)
+    let category = try XCTUnwrap(categories.first)
+
+    let line = PurchaseOrderLineDraft(materialId: plywood.id, quantity: 3)
+    let orderId = UUID()
+    let order = try await repos.inventory.savePurchaseOrder(
+      id: orderId, draft: PurchaseOrderDraft(cariAccountId: supplier.id, warehouseId: main.id, lines: [line],
+                                             description: "Entegrasyon bağlantı testi"), expectedVersion: nil)
+    _ = try await repos.inventory.transition(orderId: orderId, action: .onayla, reason: nil, expectedVersion: order.version)
+
+    func expenseDraft(_ cari: UUID?) -> FinanceDocumentDraft {
+      FinanceDocumentDraft(kind: .gider, scope: .project(sivas.id), categoryId: category.id,
+                           description: "Entegrasyon faturası", amount: 300, documentDate: CalendarDate.today(),
+                           cariAccountId: cari)
+    }
+    let expenseId = UUID()
+    let expense = try await repos.finance.saveDocument(id: expenseId, draft: expenseDraft(supplier.id), expectedVersion: nil)
+    let linkId = UUID()
+    _ = try await repos.inventory.linkExpense(id: linkId, orderId: orderId, financeDocumentId: expenseId, note: "İlk not")
+    let replay = try await repos.inventory.linkExpense(id: linkId, orderId: orderId, financeDocumentId: expenseId, note: " İlk not ")
+    XCTAssertEqual(replay.id, linkId, "aynı not aynı bağlantıyı döner")
+    await expectError(Self.conflict, "aynı bağlantı kimliği farklı not") {
+      try await repos.inventory.linkExpense(id: linkId, orderId: orderId, financeDocumentId: expenseId, note: "Başka not")
+    }
+    await expectError(Self.validation, "bağlı taslağın tedarikçisi değiştirilemez") {
+      try await repos.finance.saveDocument(id: expenseId, draft: expenseDraft(otherSupplier.id), expectedVersion: expense.version)
+    }
+    await expectError(Self.validation, "gider bağlı sipariş iptal edilemez") {
+      try await repos.inventory.transition(orderId: orderId, action: .iptal, reason: "Entegrasyon iptal denemesi",
+                                           expectedVersion: nil)
+    }
+    let unchanged = try await repos.finance.document(id: expenseId)
+    XCTAssertEqual(unchanged.cariAccountId, supplier.id)
+
+    _ = try await repos.finance.cancel(id: expenseId, reason: "Entegrasyon temizliği")
+    let links = try await repos.inventory.expenseLinks(orderId: orderId, financeDocumentId: nil)
+    XCTAssertFalse(links.contains { $0.status == .aktif }, "iptal edilen giderin etkin bağlantısı kalmaz")
+
+    let receipt = PurchaseReceiptDraft(orderId: orderId, lines: [PurchaseReceiptLineInput(orderLineId: line.id, quantity: 1)],
+                                       performedBy: "Ali Usta")
+    _ = try await repos.inventory.receive(receipt)
+    var same = receipt
+    same.performedBy = " Ali Usta "
+    let again = try await repos.inventory.receive(same)
+    XCTAssertEqual(again.id, receipt.id)
+    var other = receipt
+    other.performedBy = "Veli Usta"
+    await expectError(Self.conflict, "aynı teslim kimliği farklı teslim alan kişi") { try await repos.inventory.receive(other) }
+    let movements = try await repos.inventory.movements(filter: StockMovementFilter(purchaseOrderId: orderId))
+    XCTAssertEqual(movements.count, 1, "tekrar gönderim ikinci stok girişi açmaz")
+    // Temizlik: seed stoku değişmesin (pgTAP eşzamanlılık testi seed stokuna dayanır).
+    _ = try await repos.inventory.cancelReceipt(id: receipt.id, reason: "Entegrasyon testi temizliği")
+  }
 }

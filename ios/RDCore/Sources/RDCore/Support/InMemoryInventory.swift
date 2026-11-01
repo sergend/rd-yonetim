@@ -776,6 +776,9 @@ extension InMemoryBackend {
         }
         guard reasonLength >= 10 else { throw RepositoryError.validation("İptal gerekçesi en az 10 karakter olmalı") }
       }
+      guard !purchaseExpenseLinkList.contains(where: { $0.orderId == o.id && $0.status == .aktif }) else {
+        throw RepositoryError.validation("Gider (fatura) bağlı sipariş iptal edilemez; önce gider bağlantısını kaldırın")
+      }
       updated.status = .iptal
       updated.cancelledAt = Date()
       updated.cancelReason = reason.nilIfBlank
@@ -825,7 +828,10 @@ extension InMemoryBackend {
         .map { PurchaseReceiptLineInput(orderLineId: $0.orderLineId, quantity: $0.quantity) }
       if existing.orderId == d.orderId, existing.receiptDate == date, existing.waybillNo == d.waybillNo.nilIfBlank,
          existing.note == d.note.nilIfBlank, existing.documentId == d.documentId,
-         Set(stored) == Set(inputs) {
+         Set(stored) == Set(inputs),
+         // Teslimin açtığı tüm stok girişleri aynı teslim alan kişiyi taşımalı.
+         stockMovementList.filter({ $0.purchaseReceiptId == existing.id })
+           .allSatisfy({ $0.performedBy == d.performedBy.nilIfBlank }) {
         return existing
       }
       throw RepositoryError.conflict("Bu kimlikle farklı bir teslim var")
@@ -936,7 +942,8 @@ extension InMemoryBackend {
       throw RepositoryError.notFound
     }
     if let existing = purchaseExpenseLinkList.first(where: { $0.id == id }) {
-      if existing.orderId == orderId, existing.financeDocumentId == financeDocumentId, existing.status == .aktif { return existing }
+      if existing.orderId == orderId, existing.financeDocumentId == financeDocumentId, existing.status == .aktif,
+         existing.note == note.nilIfBlank { return existing }
       throw RepositoryError.conflict("Bu kimlikle farklı bir bağlantı var")
     }
     guard d.kind == .gider else { throw RepositoryError.validation("Siparişe yalnızca gider kaydı bağlanır") }
@@ -1015,6 +1022,76 @@ extension InMemoryBackend {
     purchaseDocumentLinkList[index].cancelReason = reason.nilIfBlank
     event(o.id, "belge_bag_kaldir", reason: reason)
     return purchaseDocumentLinkList[index]
+  }
+
+  // MARK: Bağlantı bütünlüğü (sunucudaki tetikleyicilerin karşılığı)
+
+  /// Siparişe bağlı giderin kapsamı ve tedarikçi uyumu bozulamaz.
+  func guardPurchaseExpenseLink(financeDocumentId: UUID, kind: FinanceDocKind, projectId: UUID?,
+                                cariAccountId: UUID?, isDemo: Bool) throws {
+    for link in purchaseExpenseLinkList where link.financeDocumentId == financeDocumentId && link.status == .aktif {
+      guard let o = purchaseOrderList.first(where: { $0.id == link.orderId }) else { continue }
+      if kind != .gider || projectId != o.projectId || isDemo != o.isDemo
+        || (cariAccountId != nil && cariAccountId != o.cariAccountId) {
+        throw RepositoryError.validation("Bu gider \(o.orderNo) numaralı satın alma siparişine bağlı; projesi, DEMO işareti veya tedarikçisi değiştirilemez. Önce sipariş bağlantısını kaldırın")
+      }
+    }
+  }
+
+  /// Gider iptal edildi: etkin bağlantı sona erer. Dönen bağlantı düzeltmede yeni taslağa taşınır.
+  @discardableResult
+  func endPurchaseExpenseLinks(financeDocumentId: UUID, reason: String) -> [PurchaseOrderExpenseLink] {
+    var ended: [PurchaseOrderExpenseLink] = []
+    for i in purchaseExpenseLinkList.indices
+    where purchaseExpenseLinkList[i].financeDocumentId == financeDocumentId && purchaseExpenseLinkList[i].status == .aktif {
+      purchaseExpenseLinkList[i].status = .iptal
+      purchaseExpenseLinkList[i].cancelReason = "Gider kaydı iptal edildi: " + reason
+      event(purchaseExpenseLinkList[i].orderId, "gider_bag_kaldir", reason: "Gider kaydı iptal edildi: " + reason)
+      ended.append(purchaseExpenseLinkList[i])
+    }
+    return ended
+  }
+
+  func followPurchaseExpenseLinks(_ ended: [PurchaseOrderExpenseLink], to document: FinanceDocument) {
+    for link in ended {
+      guard let o = purchaseOrderList.first(where: { $0.id == link.orderId }), o.status != .iptal,
+            document.kind == .gider, document.scope.projectId == o.projectId, document.isDemo == o.isDemo,
+            document.cariAccountId == nil || document.cariAccountId == o.cariAccountId,
+            !purchaseExpenseLinkList.contains(where: { $0.financeDocumentId == document.id && $0.status == .aktif }) else { continue }
+      purchaseExpenseLinkList.append(PurchaseOrderExpenseLink(orderId: o.id, financeDocumentId: document.id, note: link.note))
+      event(o.id, "gider_bagla", reason: "Gider kaydı düzeltildi")
+    }
+  }
+
+  /// Siparişe, teslime veya stok hareketine bağlı arşiv belgesi başka kapsama taşınamaz.
+  func guardStockDocumentScope(documentId: UUID, projectId: UUID?, isDemo: Bool) throws {
+    let orderIds = Set(purchaseDocumentLinkList.filter { $0.documentId == documentId && $0.status == .aktif }.map(\.orderId))
+      .union(purchaseReceiptList.filter { $0.documentId == documentId && $0.status == .aktif }.map(\.orderId))
+    for o in purchaseOrderList where orderIds.contains(o.id) && (o.projectId != projectId || o.isDemo != isDemo) {
+      throw RepositoryError.validation("Bu belge sipariş \(o.orderNo) kaydına bağlı; başka projeye veya kapsama taşınamaz. Önce bağlantıyı kaldırın")
+    }
+    for m in stockMovementList where m.documentId == documentId && m.status != .reddedildi {
+      if let w = warehouse(m.warehouseId), w.projectId != projectId || w.isDemo != isDemo {
+        throw RepositoryError.validation("Bu belge stok hareketi \(m.movementNo) kaydına bağlı; başka projeye veya kapsama taşınamaz. Önce bağlantıyı kaldırın")
+      }
+    }
+  }
+
+  /// Belge iptal edildi: sipariş belge bağlantısı sona erer; yeni dosyayla değiştirmede yeni belgeye taşınır.
+  func endPurchaseDocumentLinks(documentId: UUID, reason: String, replacement: ArchiveDocument?) {
+    for i in purchaseDocumentLinkList.indices
+    where purchaseDocumentLinkList[i].documentId == documentId && purchaseDocumentLinkList[i].status == .aktif {
+      let orderId = purchaseDocumentLinkList[i].orderId
+      purchaseDocumentLinkList[i].status = .iptal
+      purchaseDocumentLinkList[i].cancelReason = "Belge iptal edildi: " + reason
+      event(orderId, "belge_bag_kaldir", reason: "Belge iptal edildi: " + reason)
+      if let r = replacement, let o = purchaseOrderList.first(where: { $0.id == orderId }), o.status != .iptal,
+         r.projectId == o.projectId, r.isDemo == o.isDemo,
+         !purchaseDocumentLinkList.contains(where: { $0.orderId == orderId && $0.documentId == r.id && $0.status == .aktif }) {
+        purchaseDocumentLinkList.append(PurchaseOrderDocumentLink(orderId: orderId, documentId: r.id))
+        event(orderId, "belge_bagla", reason: "Belge yeni dosyayla değiştirildi")
+      }
+    }
   }
 
   func inventoryEvents(orderId: UUID) throws -> [PurchaseOrderEvent] {

@@ -224,6 +224,7 @@ extension InMemoryBackend {
       archiveDocuments[old].cancelledAt = Date()
       archiveDocuments[old].version += 1
       documentEvent(replaces, "degistirildi", from: .yuklendi, to: .iptal, reason: "Yeni dosyayla değiştirildi")
+      endPurchaseDocumentLinks(documentId: replaces, reason: "Yeni dosyayla değiştirildi", replacement: d)
     }
     d.status = .yuklendi
     d.uploadedAt = Date()
@@ -280,6 +281,7 @@ extension InMemoryBackend {
     d.cancelReason = reason?.nilIfBlank ?? "Yükleme vazgeçildi"
     d.version += 1
     archiveDocuments[index] = d
+    endPurchaseDocumentLinks(documentId: id, reason: d.cancelReason ?? "", replacement: nil)
     documentEvent(id, "iptal", from: from, to: .iptal, reason: d.cancelReason)
     return d
   }
@@ -306,6 +308,7 @@ extension InMemoryBackend {
       throw RepositoryError.validation("Deneme (DEMO) belgesi gerçek kayda, gerçek belge deneme kaydına taşınamaz")
     }
     if d.link == link { return d }
+    try guardStockDocumentScope(documentId: id, projectId: t.projectId, isDemo: d.isDemo)
     documentEvent(id, "baglanti_degisti", from: d.status, to: d.status, reason: reason)
     d.linkType = link.type
     d.projectId = t.projectId

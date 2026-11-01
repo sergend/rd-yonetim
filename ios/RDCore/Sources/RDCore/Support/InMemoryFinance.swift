@@ -211,6 +211,8 @@ extension InMemoryBackend {
       guard existing.isDemo == isDemo else {
         throw RepositoryError.validation("Demo belge gerçek kapsama taşınamaz (veya tersi)")
       }
+      try guardPurchaseExpenseLink(financeDocumentId: id, kind: document.kind, projectId: document.scope.projectId,
+                                   cariAccountId: document.cariAccountId, isDemo: isDemo)
       document.documentNo = existing.documentNo
       document.createdBy = existing.createdBy
       document.version = existing.version + 1
@@ -352,6 +354,7 @@ extension InMemoryBackend {
     financeDocumentList[index].cancelledAt = Date()
     financeDocumentList[index].cancelReason = reason
     financeDocumentList[index].version += 1
+    endPurchaseExpenseLinks(financeDocumentId: document.id, reason: reason)
   }
 
   func cancelFinanceDocument(id: UUID, reason: String) throws -> FinanceDocument {
@@ -392,6 +395,7 @@ extension InMemoryBackend {
     }
     let trimmed = reason.trimmingCharacters(in: .whitespacesAndNewlines)
     guard trimmed.count >= 10 else { throw RepositoryError.validation("Düzeltme gerekçesi en az 10 karakter olmalı") }
+    let linked = purchaseExpenseLinkList.filter { $0.financeDocumentId == id && $0.status == .aktif }
     try cancelDocument(at: index, reason: trimmed)
     financeEvent(id, "duzelt", from: "onaylandi", to: "iptal", reason: trimmed)
     financeDocumentSequence += 1
@@ -403,6 +407,7 @@ extension InMemoryBackend {
       invoiceNo: document.invoiceNo, documentRef: document.documentRef, notes: document.notes, replacesId: id,
       createdBy: profile.id, isDemo: document.isDemo)
     financeDocumentList.append(copy)
+    followPurchaseExpenseLinks(linked, to: copy)
     financeEvent(newId, "olustur", from: nil, to: "taslak", reason: trimmed)
     return copy
   }

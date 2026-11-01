@@ -1,7 +1,8 @@
 # Karar 0008: Aşama 7 kararları (malzeme, stok ve satın alma)
 
-Migration: `supabase/migrations/20261108000000_malzeme_stok_satinalma.sql` (eski migration'lar değişmedi).
-Testler: `supabase/tests/120_stok.test.sql`, `121_stok_concurrency.test.sql`, `122_satinalma.test.sql`,
+Migration'lar: `supabase/migrations/20261108000000_malzeme_stok_satinalma.sql` ve inceleme düzeltmesi
+`supabase/migrations/20261109000000_satinalma_baglanti_butunlugu.sql` (eski migration'lar değişmedi).
+Testler: `supabase/tests/120_stok.test.sql`, `121_stok_concurrency.test.sql`, `122_satinalma.test.sql`, `123_satinalma_baglanti_butunlugu.test.sql`,
 `ios/RDCore/Tests/RDCoreTests/InventoryTests.swift`, `ios/RDCore/Tests/RDSupabaseIntegrationTests/InventoryRepositoryTests.swift`,
 CI `backup-restore` işi (`scripts/backup/stock-state.sql`).
 
@@ -21,7 +22,7 @@ CI `backup-restore` işi (`scripts/backup/stock-state.sql`).
 | 12 | Transfer iki depoda `stok.write` (onay için iki depoda `stok.approve`) ister; DEMO ↔ gerçek depo transferi, DEMO cari ↔ gerçek depo siparişi ve DEMO belge ↔ gerçek kayıt bağlantısı yasak | Yetki ve deneme verisi ayrımı. |
 | 13 | Sipariş durumları: taslak → onaylı → kısmen teslim → tamamlandı; iptal. Satırlar yalnızca taslakta değişir (yumuşak silme). Onaylı sipariş teslim yoksa iptal edilir (`satinalma.cancel`, gerekçe ≥ 10); teslim varsa eksik teslimle kapatılır | Teslim geçmişi kaybolmaz. |
 | 14 | Teslim alma stok girişinin tek kaynağıdır: her teslim satırı bir giriş hareketi; sipariş satırı kilitlenip kalan kontrol edilir (trigger da denetler). Teslim iptali girişleri ters kayıtla geri alır ve sipariş durumunu yeniden hesaplar | Fazla teslim ve çift giriş yapısal olarak engellenir. |
-| 15 | Sipariş borç, gider, cari hareket veya ödeme oluşturmaz. Bu migration hiçbir finans tablosuna yazmaz ve finans tablolarına trigger eklemez | Gerçek borç Aşama 5 gider onayından doğar; çift kayıt olmaz. |
+| 15 | Sipariş borç, gider, cari hareket veya ödeme oluşturmaz. Aşama 7 hiçbir finans tablosuna yazmaz. Finans belgesindeki tek ek, bağlantı bütünlüğü tetikleyicileridir (karar 24): yalnızca reddeder veya sipariş bağlantı tablosunu günceller | Gerçek borç Aşama 5 gider onayından doğar; çift kayıt olmaz. |
 | 16 | Fatura bağlantısı: var olan gider kaydı `purchase_order_expense_links` ile bağlanır (bir gider en fazla bir etkin siparişe; aynı proje, DEMO; cari boş veya aynı tedarikçi; sipariş onaylı). Bağlantı finans kaydını değiştirmez | Fatura sonra gelse bile ikinci finans kaydı açılmaz. |
 | 17 | Satır fiyatı bilgi amaçlıdır ve sütun yetkisiyle gizlidir; `purchase_order_prices()` yalnızca `satinalma.read` ile döner. Şantiye şefi teslim alır ama fiyat görmez | Fiyat bilgisi finans yetkisi gibi korunur. |
 | 18 | Stok değerlemesi yok (FIFO, ortalama maliyet, kur farkı). Stok raporu (`stock_summary`: açılış, giriş, kullanım, net transfer, iadeler, sayım, kapanış; ters kayıtlar asıl türde) finans raporlarından ayrıdır | Kapsam kontrolü; finans raporları değişmez. |
@@ -30,3 +31,5 @@ CI `backup-restore` işi (`scripts/backup/stock-state.sql`).
 | 21 | Yedek doğrulaması: `stock-state.sql` depo/malzeme miktarlarını, bekleyen hareketleri, sipariş satırı teslimlerini ve sipariş durumlarını yazar; geri yüklemeden sonra birebir karşılaştırılır | Geri yüklenen stok aynı olmalı. |
 | 22 | iPhone: malzeme kataloğu (kategori, arama, detay, oranlar), stok (depo seçimi, miktar, onay bekleyenler, geçmiş), hareket formu (tür, depo, malzeme, miktar; ayrıntılar katlanır), satın alma (liste, oluşturma, detay, onay, teslim, gider ve belge bağlama), proje detayında "Malzeme ve stok". Ana sayfaya tutar, kasa veya banka eklenmedi; logo ve ikon değişmedi | Saha için en az alan. |
 | 23 | Kapsam dışı: stok değerlemesi, barkod, minimum stok uyarısı, talep (satın alma isteği) akışı, tedarikçi teklif karşılaştırması, depo içi raf/lokasyon, sipariş PDF çıktısı, birim ve kategori yönetim ekranı (RPC hazır) | Aşamanın odağı doğru miktar ve çift kaydın engellenmesi. |
+| 24 | Bağlantı kapsamı bağlantıdan sonra da korunur (PR #9 incelemesi): siparişe bağlı gider (taslak dahil) başka projeye, masraf merkezine, DEMO kapsamına veya başka tedarikçiye taşınamaz; carisi boşaltmak, aynı tedarikçi ve kapsamı bozmayan düzenleme serbesttir. Siparişe, teslime veya stok hareketine bağlı belge başka projeye/kapsama taşınamaz. Önce bağlantı kaldırılır. Gider iptalinde bağlantı sona erer; düzeltmede yeni taslağa taşınır. Belge iptalinde sipariş belge bağlantısı sona erer; yeni dosyayla değiştirmede yeni belgeye taşınır. Gider bağlı sipariş iptal edilemez. Hepsi audit ve sipariş geçmişine (`otomatik: true`) yazılır. Bağlama sırasında gider satırı `for update`, belge satırı `for share` kilitlenir | Yalnızca bağlama anındaki kontrol, sonradan yapılan düzenlemeyle yanlış etkin bağlantı bırakıyordu. |
+| 25 | Tekrar gönderim karşılaştırması tüm normalleştirilmiş öznitelikleri kapsar: teslimde teslim alan kişi (teslimin her stok hareketinde) ve satırlar, gider bağlantısında not. Aynı niyet aynı kaydı döner, farklı niyet 23505 | Aynı kimlikle farklı bilgi sessizce eski kaydı döndürmesin. |

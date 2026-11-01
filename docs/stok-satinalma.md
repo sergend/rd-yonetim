@@ -57,7 +57,7 @@ Aynı kimlik ve aynı içerik aynı kaydı döner; ikinci hareket, ikinci stok g
 veya ikinci sipariş açılmaz. Aynı kimlik farklı içerikle veya başka kullanıcının
 kimliğiyle gelirse 23505 ("Bu kimlikle farklı bir hareket var") döner. Formlar
 kimliği başarılı olana kadar korur: bağlantı kopup "Kaydet"e tekrar basılırsa
-aynı istek gönderilir.
+aynı istek gönderilir. Teslimde teslim alan kişi, gider bağlantısında not da karşılaştırılır.
 
 ## Satın alma ve finans (çift kayıt yok)
 
@@ -76,6 +76,13 @@ aynı istek gönderilir.
   sayar (pgTAP `122_satinalma`).
 - Belge bağlantısı (irsaliye, fatura fotoğrafı) Aşama 6 arşivindeki belgeyi
   gösterir; finans kayıtlarına dokunmaz.
+- **Bağlantı sonrası koruma:** Siparişe bağlı gider (taslak olsa bile) başka
+  projeye, DEMO kapsamına veya başka tedarikçiye taşınamaz; belge de bağlı
+  olduğu sipariş, teslim veya hareketin projesinden çıkarılamaz. Önce bağlantı
+  kaldırılır. Gider iptal edilirse bağlantı kendiliğinden sona erer, düzeltilirse
+  yeni taslağa taşınır; belge iptal edilirse bağlantı sona erer, yeni dosyayla
+  değiştirilirse yeni belgeye taşınır. Gider bağlı sipariş iptal edilemez.
+  Bu değişiklikler sipariş geçmişinde "otomatik" olarak görünür.
 - Stok değerlemesi yoktur: FIFO, ortalama maliyet ve kur farkı hesaplanmaz. Stok
   raporları (miktar) finans raporlarından (tutar) ayrıdır.
 
