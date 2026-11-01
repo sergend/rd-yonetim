@@ -46,6 +46,7 @@ public enum PreviewData {
     let profile = await backend.profile
     await backend.set(session: AuthSession(userId: profile.id, email: profile.email))
     await seedPuantaj(backend)
+    await seedInventory(backend)
     try? await backend.post(CariEntryDraft(cariAccountId: taseron.id, scope: .project(sivas.id),
                                            entryDate: CalendarDate(year: 2026, month: 9, day: 30), direction: .alacak,
                                            kind: .manuel, amount: 450_000, description: "1 nolu hakediş (örnek)"))
@@ -53,6 +54,48 @@ public enum PreviewData {
                                            entryDate: CalendarDate(year: 2026, month: 10, day: 10), direction: .borc,
                                            kind: .odeme, amount: 200_000, description: "Kısmi ödeme (örnek)"))
     return backend
+  }
+
+  /// Malzeme, stok ve satın alma (Aşama 7): plywood ve direk teslimi, kullanım
+  /// ve kısmen teslim alınmış demir siparişi. Tutarlar hayalidir.
+  static func seedInventory(_ backend: InMemoryBackend) async {
+    guard let adet = await backend.inventoryUnit(code: "adet"), let kg = await backend.inventoryUnit(code: "kg"),
+          let ton = await backend.inventoryUnit(code: "ton"),
+          let kalip = await backend.inventoryCategory(name: "Kalıp ve iskele"),
+          let demirCat = await backend.inventoryCategory(name: "Demir") else { return }
+    let plywood = Material(code: "MLZ-0001", name: "Plywood", categoryId: kalip.id, baseUnitId: adet.id)
+    let direk = Material(code: "MLZ-0002", name: "Demir direk", categoryId: kalip.id, baseUnitId: adet.id)
+    let demir = Material(code: "MLZ-0004", name: "İnşaat demiri", categoryId: demirCat.id, baseUnitId: kg.id)
+    await backend.seedInventory(materials: [plywood, direk, demir],
+                                conversions: [MaterialUnitConversion(materialId: demir.id, unitId: ton.id, factor: 1000,
+                                                                     note: "1 ton = 1000 kg")])
+    guard let depot = await backend.defaultWarehouse(projectId: sivas.id) else { return }
+    let line1 = PurchaseOrderLineDraft(materialId: plywood.id, quantity: 160, unitPrice: 850)
+    let line2 = PurchaseOrderLineDraft(materialId: direk.id, quantity: 200, unitPrice: 320)
+    let line3 = PurchaseOrderLineDraft(materialId: demir.id, quantity: 12, unitId: ton.id, unitPrice: 20_000)
+    let day = CalendarDate(year: 2026, month: 10, day: 5)
+    do {
+      let kalipOrder = try await backend.saveInventoryPurchaseOrder(
+        id: UUID(), draft: PurchaseOrderDraft(cariAccountId: tedarikci.id, warehouseId: depot.id, lines: [line1, line2],
+                                              orderDate: day, description: "Kalıp malzemesi (örnek)"), expectedVersion: nil)
+      _ = try await backend.inventoryTransition(orderId: kalipOrder.id, action: .onayla, reason: nil, expectedVersion: nil)
+      _ = try await backend.inventoryReceive(PurchaseReceiptDraft(
+        orderId: kalipOrder.id, lines: [PurchaseReceiptLineInput(orderLineId: line1.id, quantity: 100),
+                                        PurchaseReceiptLineInput(orderLineId: line2.id, quantity: 200)],
+        receiptDate: day.adding(days: 2), waybillNo: "IRS-0001"))
+      let demirOrder = try await backend.saveInventoryPurchaseOrder(
+        id: UUID(), draft: PurchaseOrderDraft(cariAccountId: tedarikci.id, warehouseId: depot.id, lines: [line3],
+                                              orderDate: day, description: "Temel demiri (örnek)"), expectedVersion: nil)
+      _ = try await backend.inventoryTransition(orderId: demirOrder.id, action: .onayla, reason: nil, expectedVersion: nil)
+      _ = try await backend.inventoryReceive(PurchaseReceiptDraft(
+        orderId: demirOrder.id, lines: [PurchaseReceiptLineInput(orderLineId: line3.id, quantity: 5)],
+        receiptDate: day.adding(days: 3), waybillNo: "IRS-0002"))
+      _ = try await backend.createInventoryMovement(StockMovementDraft(
+        kind: .kullanim, materialId: plywood.id, warehouseId: depot.id, quantity: 40, movementDate: day.adding(days: 5),
+        description: "B Blok 2. kat kalıbı", performedBy: "Deneme Kalıp Ustası"))
+    } catch {
+      return  // önizleme verisi; hata önizlemeyi engellemez
+    }
   }
 
   /// Sözleşme ve hakediş önizlemeleri: örnek sözleşme, onaylı ve kısmen

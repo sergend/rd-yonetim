@@ -112,11 +112,17 @@ public final class MaterialCatalogViewModel {
     }
   }
 
+  public struct Group: Identifiable, Sendable {
+    public var category: MaterialCategory?
+    public var materials: [Material]
+    public var id: String { category?.id.uuidString ?? "kategorisiz" }
+  }
+
   /// Kategoriye göre gruplu liste (kategori sırasıyla).
-  public var grouped: [(category: MaterialCategory?, materials: [Material])] {
-    let groups = Dictionary(grouping: filtered) { $0.categoryId }
-    return groups.map { (lookup.categories[$0.key], $0.value.sorted { $0.name < $1.name }) }
-      .sorted { ($0.0?.sortOrder ?? 999, $0.0?.name ?? "") < ($1.0?.sortOrder ?? 999, $1.0?.name ?? "") }
+  public var grouped: [Group] {
+    Dictionary(grouping: filtered) { $0.categoryId }
+      .map { Group(category: lookup.categories[$0.key], materials: $0.value.sorted { $0.name < $1.name }) }
+      .sorted { ($0.category?.sortOrder ?? 999, $0.category?.name ?? "") < ($1.category?.sortOrder ?? 999, $1.category?.name ?? "") }
   }
 
   public func load() async {

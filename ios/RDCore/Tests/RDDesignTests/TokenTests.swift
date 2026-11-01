@@ -59,6 +59,8 @@ final class TokenTests: XCTestCase {
     XCTAssertEqual(TaskPriority.yuksek.tone, .danger)
     XCTAssertEqual(BalanceSide.weOwe.tone, .danger)
     for status in PuantajPeriodStatus.allCases { _ = status.tone }
+    for status in StockMovementStatus.allCases { _ = status.tone }
+    for status in PurchaseOrderStatus.allCases { _ = status.tone }
     // Puantaj hücresinde renk tek başına anlam taşımaz: her durumun ayrı kısa harfi var.
     XCTAssertEqual(Set(PuantajStatus.allCases.map(\.shortLabel)).count, PuantajStatus.allCases.count)
     XCTAssertNotEqual(PuantajStatus.tamGun.tone, PuantajStatus.calismadi.tone)

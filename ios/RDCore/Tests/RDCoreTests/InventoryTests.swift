@@ -635,6 +635,19 @@ final class InventoryViewModelTests: XCTestCase {
     XCTAssertEqual(vm.order.status, .tamamlandi)
   }
 
+  func testPreviewDataHasStockAndOrders() async throws {
+    let backend = await PreviewData.backend()
+    let repo = backend.repositories.inventory
+    let found = await backend.defaultWarehouse(projectId: PreviewData.sivas.id)
+    let depot = try XCTUnwrap(found)
+    let balances = try await repo.balances(warehouseId: depot.id)
+    XCTAssertEqual(Set(balances.map(\.quantity)), [60, 200, 5000], "plywood 100−40, direk 200, demir 5 ton")
+    let orders = try await repo.purchaseOrders(projectId: PreviewData.sivas.id, status: nil)
+    XCTAssertEqual(Set(orders.map(\.status)), [.kismiTeslim])
+    let entries = await backend.entries.count
+    XCTAssertEqual(entries, 2, "örnek veride yalnız iki manuel cari hareket var; stok cari yazmaz")
+  }
+
   func testOrderFormHidesPricesWithoutPermission() async throws {
     let f = await Fixture()
     let access = AccessControl(grants: grants([.satinalmaWrite, .stokRead], project: f.project.id))

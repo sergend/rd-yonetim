@@ -231,6 +231,71 @@ sözleşmeye bağlı belge için `sozlesme.read`/`sozlesme.write` de gerekir. Bu
 yüzden şantiye şefi irsaliye, tutanak ve ruhsatı görür ve ekler; fatura, fiş
 ve sözleşme dosyalarını göremez.
 
+## Malzeme, stok ve satın alma (Aşama 7)
+
+- Katalog veridir, kodda sabit liste yoktur: `material_units` (kod, ad, sembol,
+  izin verilen ondalık hane), `material_categories`, `materials` (kod, ad,
+  kategori, **temel birim**, açıklama, etkin/pasif), `material_unit_conversions`
+  (1 birim = `factor` temel birim; yalnızca açıkça tanımlanan oran kullanılır,
+  oran değişmez, pasifleştirilip yenisi açılır). Hareketi, sipariş satırı veya
+  etkin oranı olan malzemenin temel birimi değiştirilemez.
+- `warehouses`: her projeye otomatik "Ana depo" (`zz_default_warehouse`
+  trigger'ı, mevcut projelere de açıldı) ve projesiz **genel depolar**. Depo
+  projesi ve DEMO işareti sonradan değişmez.
+- `stock_movements` (giriş, kullanım, transfer, depoya iade, tedarikçiye iade,
+  sayım, ters kayıt; durum `bekliyor` → `onaylandi` / `reddedildi`) ve
+  `stock_entries` (**değiştirilemez defter**, işaretli miktar, temel birim).
+  Stok miktarı hiçbir tabloda tutulmaz: `v_stock_balances` defter toplamıdır;
+  `v_stock_pending` onay bekleyenlerin etkisini ayrı gösterir.
+- Negatif stok veritabanında engellenir: her çıkış satırı (depo, malzeme)
+  anahtarında işlem sonuna kadar süren `pg_advisory_xact_lock` alır ve toplamı
+  kilitten sonra yeniden okur (`stock_entry_non_negative` trigger'ı). Eşzamanlı
+  iki çıkış sırayla değerlendirilir.
+- Satın alma: `purchase_orders` (tedarikçi carisi, teslim deposu, proje depodan
+  türetilir, tarih, beklenen tarih, para birimi; `taslak` → `onaylandi` →
+  `kismi_teslim` → `tamamlandi`, `iptal`), `purchase_order_lines` (miktar, birim,
+  oran, temel miktar, bilgi amaçlı birim fiyat), `purchase_receipts` +
+  `purchase_receipt_lines` (her satır bir stok girişi; satır kilidiyle kalan
+  miktar aşılamaz), `purchase_order_events` (değiştirilemez geçmiş).
+  `v_purchase_order_line_status` fiyatsız teslim durumudur; fiyat sütunları
+  sütun yetkisiyle kapalıdır ve yalnızca `purchase_order_prices()` ile
+  (`satinalma.read`) okunur.
+- Finans bağlantısı yalnızca bilgidir: `purchase_order_expense_links` (bir gider
+  en fazla bir siparişe; gider, proje, cari ve DEMO uyumlu olmalı) ve
+  `purchase_order_documents` (Aşama 6 arşivi). Bu aşama hiçbir finans tablosuna
+  yazmaz ve finans tablolarına trigger eklemez.
+- Yazma yalnızca RPC'lerle: `save_material_unit`, `save_material_category`,
+  `save_material`, `save_material_unit_conversion`,
+  `set_material_unit_conversion_active`, `save_warehouse`,
+  `create_stock_movement`, `approve_stock_movement`, `reject_stock_movement`,
+  `reverse_stock_movement`, `stock_summary`, `save_purchase_order`,
+  `purchase_order_transition`, `receive_purchase_order`,
+  `cancel_purchase_receipt`, `link_purchase_order_expense`,
+  `unlink_purchase_order_expense`, `link_purchase_order_document`,
+  `unlink_purchase_order_document`, `purchase_order_prices`.
+- iOS: `InventoryRepository` (RDCore), `SupabaseInventoryRepository`,
+  `InMemoryInventory`, `InventoryViewModels`. Ekranlar `ios/RDYonetim/Stok/`.
+- Ayrıntılı kurallar: [stok-satinalma.md](stok-satinalma.md); kararlar:
+  [karar 0008](decisions/0008-asama-7-kararlari.md).
+
+| İzin | Yönetici | Muhasebe | Proje müdürü (proje) | Şantiye şefi (proje) | İdari işler | Görüntüleyici |
+| --- | --- | --- | --- | --- | --- | --- |
+| `stok.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `stok.write` | ✓ | | ✓ | ✓ | | |
+| `stok.approve` | ✓ | | ✓ | | | |
+| `stok.cancel` | ✓ | | ✓ | | | |
+| `malzeme.manage` | ✓ | ✓ | | | ✓ | |
+| `satinalma.read` (fiyat dahil) | ✓ | ✓ | ✓ | | | |
+| `satinalma.write` | ✓ | ✓ | ✓ | | | |
+| `satinalma.approve` | ✓ | | | | | |
+| `satinalma.receive` | ✓ | | ✓ | ✓ | | |
+| `satinalma.cancel` | ✓ | | | | | |
+
+Şantiye şefi giriş ve kullanım hazırlar (onaya düşer), teslim alır; fiyat
+göremez, sipariş onaylayamaz, stok onaylayamaz ve hiçbir ödeme yetkisi almaz.
+Transferde hareket her iki depoda da yetki ister. Proje kullanıcısı yalnızca
+kendi projesinin deposunu görür; genel depolar genel izin ister.
+
 ## Etkin izin
 
 `private.has_permission(izin, proje)` = (genel roller ∪ o projedeki rol ∪ özel
