@@ -148,6 +148,32 @@ bağlantılı, 100.000 ödenmiş, vadesi geçmiş), `GD-000002` akaryakıt 4.250
 - [ ] Ana ekranda hiçbir para tutarı, kasa veya banka bakiyesi yok.
 - [ ] Gider listesi ve detayı koyu temada ve en büyük metin boyutunda okunaklı; VoiceOver durum rozetini ve kalan tutarı okuyor.
 
+### Aşama 6: evrak ve belge arşivi
+
+Seed verisinde belge yoktur; adımlar boş arşivle başlar. `supabase start`
+Storage'ı ve Edge Function çalışma ortamını da başlatmalıdır (varsayılan;
+`-x storage-api` veya `-x edge-runtime` kullanmayın): yükleme `belge-dogrula`
+fonksiyonu dosyanın SHA-256 özetini sunucuda doğrulamadan tamamlanmaz. Belge
+tarayıcı (VisionKit) **Simülatörde çalışmaz**: orada "Tara" düğmesi görünmez,
+fotoğraf ve dosya seçimiyle devam edilir. Tarama adımları gerçek iPhone ister.
+
+- [ ] `sef@example.test` → Projeler → Sivas → "Proje belgeleri" → + → "Fotoğraf seç": fotoğraf önizlemede görünüyor (yakınlaştırılabiliyor), tür varsayılan "İrsaliye"; tür listesinde Fatura, Fiş ve Sözleşme **yok**. Ad girip "Yükle": adımlar (Sunucuya bildiriliyor → Dosya gönderiliyor → Doğrulanıyor) ve belge listede.
+- [ ] Belgeye dokun: dosya açılıyor, "Dosya doğrulandı (SHA-256 eşleşti)" yazıyor, Geçmiş'te "Yükleme başlatıldı" ve "Dosya yüklendi ve doğrulandı".
+- [ ] Not: aynı boyut ve türde farklı içerik (sunucu özeti uyuşmaz) ve indirilen dosyanın bozuk olması elle kolay üretilemez; bu senaryolar otomatik testlerdedir (pgTAP `111_evrak_sunucu_ozet`, Swift `DocumentServerDigestTests` ve gerçek Storage'a karşı entegrasyon testi). Eşleşmeyen dosya ayrıntı ekranında gösterilmez; hata ve "Tekrar dene" çıkar.
+- [ ] Gerçek iPhone: + → "Tara" → üç sayfa tara → Kaydet: tek PDF olarak önizlemede üç sayfa; yüklenince ayrıntıda sayfalar kaydırılıyor ve yakınlaştırılıyor.
+- [ ] + → "Dosya seç (PDF)": Dosyalar'dan PDF seçiliyor. Uzantısı `.pdf` olan ama içi PDF olmayan dosya "Bu dosya türü desteklenmiyor" hatası veriyor; 25 MB'tan büyük dosya boyut hatası veriyor.
+- [ ] Aynı fotoğrafı aynı projeye ikinci kez yüklemek "Bu dosya bu kayda zaten eklenmiş" hatası veriyor.
+- [ ] Yükleme sırasında uçak modunu aç: hata ve "Tekrar dene" çıkıyor. "Kapat" → "Sakla, sonra dene": belge listesinde "Gönderilmeyi bekleyenler" altında. Uygulamayı kapatıp aç, uçak modunu kapat, "Tekrar dene": belge **bir kez** yükleniyor.
+- [ ] `muhasebe@example.test` → Giderler → GD-000001 (demir) → Belgeler bölümü → "Belge ekle": tür varsayılan "Fiş"; fatura PDF'i yükle. Detaydaki tutar, ödenen, kalan ve durum **değişmedi**; cari hesapta yeni hareket yok.
+- [ ] `sef@example.test`: Sivas belgelerinde muhasebenin yüklediği fatura/fiş **görünmüyor**; şefin yüklediği irsaliye görünüyor.
+- [ ] Ana ekran → Belgeler: Proje, tür ve tarih süzgeci ile arama (ad, açıklama) çalışıyor; "Arşiv" ve "İptal" sekmeleri.
+- [ ] Muhasebe → bir belge → "Arşivle" (gerekçe): Etkin listeden kalkıp Arşiv'de. "İptal et" (gerekçe en az 10 karakter): İptal sekmesinde, geçmişte gerekçe görünüyor; dosya hâlâ açılabiliyor.
+- [ ] "Dosyayı değiştir": yeni dosya yüklenince eski belge "Yeni dosyayla değiştirildi" gerekçesiyle İptal'de, yenisi Etkin'de.
+- [ ] Proje müdürü veya yönetici → proje belgesi → "Bağlantıyı düzelt" → başka demo proje + gerekçe: belge yeni projede; geçmişte "Bağlantısı değiştirildi".
+- [ ] Taşeron sözleşmesi detayında "Belgeler" bölümü; sözleşme dosyası eklenebiliyor.
+- [ ] Ana ekranda hiçbir para tutarı, kasa veya banka bakiyesi yok; logo ve ikon değişmedi.
+- [ ] Belge ekranları koyu temada ve en büyük metin boyutunda okunaklı; VoiceOver "Tara", "Fotoğraf seç", "Dosya seç" ve durum rozetlerini okuyor.
+
 ## 5. Otomatik testler
 
 ```bash
@@ -169,4 +195,7 @@ başlangıç için `npx supabase db reset`.
 - `RDYonetim.xcodeproj` elle yazıldı; ilk açılışta Xcode bir düzeltme önerirse kabul edilebilir.
 - Keychain'de oturum saklama, klavye/odak davranışı, koyu mod görünümü ve
   gerçek cihaz davranışı yalnızca Mac/iPhone'da görülebilir.
+- Belge tarama (VisionKit kamera), fotoğraf seçici, Dosyalar seçici, PDF
+  görüntüleme ve yakınlaştırma hiçbir cihazda denenmedi; yalnızca derleme
+  (CI) ve RDCore testleri (doğrulama, özet, yükleme/yeniden deneme) çalıştı.
 - Uygulama ikonu ve logo boştur; orijinal dosyalar bekleniyor (docs/brand-assets.md).

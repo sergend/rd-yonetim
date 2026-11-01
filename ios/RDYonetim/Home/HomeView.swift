@@ -29,6 +29,8 @@ enum AppRoute: Hashable {
   case payables(FinanceDocKind)
   case financeReports
   case financeCategories
+  case documents(link: DocumentLink?, title: String?, projectId: UUID?)
+  case archiveDocument(ArchiveDocument)
   case placeholder(AppModule)
 }
 
@@ -113,6 +115,9 @@ struct HomeView: View {
     case .payables(let kind): PayablesView(kind: kind, app: app)
     case .financeReports: FinanceReportView(app: app)
     case .financeCategories: FinanceCategoryListView(app: app)
+    case .documents(let link, let title, let projectId):
+      DocumentListView(link: link, linkTitle: title, projectId: projectId, app: app)
+    case .archiveDocument(let document): DocumentDetailView(document: document, app: app)
     case .placeholder(let module): ModulePlaceholderView(module: module)
     }
   }
@@ -249,6 +254,7 @@ struct HomeView: View {
     case .borclar: .payables(.gider)
     case .gelirler: .financeList(.gelir, projectId: nil)
     case .raporlar: .financeReports
+    case .belgeler: .documents(link: nil, title: nil, projectId: nil)
     default: .placeholder(module)
     }
   }

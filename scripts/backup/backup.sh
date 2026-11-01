@@ -23,9 +23,13 @@ $cli db dump --db-url "$SUPABASE_DB_URL" --data-only --use-copy \
 
 psql "$SUPABASE_DB_URL" -X -A -t -v ON_ERROR_STOP=1 -f "$here/row-counts.sql"  > "$out/row-counts.txt"
 psql "$SUPABASE_DB_URL" -X -A -t -v ON_ERROR_STOP=1 -f "$here/security-state.sql" > "$out/security-state.txt"
+# Belge dosyalarının yol, boyut ve SHA-256 listesi. Veritabanı yedeği dosya
+# içeriklerini taşımaz: dosyalar storage-backup.sh ile ayrıca yedeklenir ve
+# bu listeyle doğrulanır. Henüz belge yoksa liste boş olabilir.
+psql "$SUPABASE_DB_URL" -X -A -t -v ON_ERROR_STOP=1 -f "$here/storage-manifest.sql" > "$out/storage-manifest.tsv"
 date -u +%Y-%m-%dT%H:%M:%SZ > "$out/created-at.txt"
 
 for f in roles.sql schema.sql data.sql row-counts.txt security-state.txt; do
   test -s "$out/$f" || { echo "Boş yedek dosyası: $f" >&2; exit 1; }
 done
-echo "Yedek hazır: $out ($(wc -l < "$out/row-counts.txt") tablo)"
+echo "Yedek hazır: $out ($(wc -l < "$out/row-counts.txt") tablo, $(grep -c . "$out/storage-manifest.tsv" || true) belge dosyası listede)"

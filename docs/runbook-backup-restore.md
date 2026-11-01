@@ -11,6 +11,15 @@ her gece Supabase dışına şifreli yedek, aylık otomatik geri yükleme testi.
 2. Authentication > Providers > Email: **Allow new users to sign up = kapalı**.
 3. Veritabanı bağlantı adresi: Connect > **Session pooler** URI (şifre dahil).
 
+4. Belge doğrulama fonksiyonunu yayınlayın (belgeler bu olmadan **yüklenemez**;
+   yükleme "Doğrulama servisine ulaşılamadı" hatasıyla bekler):
+   ```bash
+   supabase functions deploy belge-dogrula --project-ref <proje-kimliği>
+   ```
+   Fonksiyon `SUPABASE_URL`, `SUPABASE_ANON_KEY` ve `SUPABASE_SERVICE_ROLE_KEY`
+   değerlerini Supabase'in kendi ortamından alır; ayrıca gizli anahtar girilmez
+   ve sunucu anahtarı uygulamaya hiç gitmez.
+
 ### Dış yedek deposu (S3 uyumlu, Supabase dışında)
 
 Örnek: Cloudflare R2 veya Backblaze B2.
@@ -45,13 +54,20 @@ Settings > Environments > `production-backup` ortamı oluşturun, içine:
 | Variable | `BACKUP_S3_BUCKET` | Bucket adı |
 | Variable | `BACKUP_ENABLED` | `true` (repository variable olarak) |
 
-Belge yedeği (Storage, Aşama 6'da belgeler gelince açılır):
+Belge dosyası yedeği (Storage, `belgeler` bucket'ı; şu an **kapalı**):
 
-| Tür | Ad |
-| --- | --- |
-| Secret | `SUPABASE_STORAGE_S3_ENDPOINT`, `SUPABASE_STORAGE_S3_ACCESS_KEY_ID`, `SUPABASE_STORAGE_S3_SECRET_ACCESS_KEY` |
-| Secret | `BACKUP_STORAGE_CRYPT_PASSWORD`, `BACKUP_STORAGE_CRYPT_SALT` (rastgele, parola yöneticisinde de saklayın) |
-| Variable | `SUPABASE_STORAGE_S3_REGION`, `STORAGE_BACKUP_ENABLED` = `true` |
+| Tür | Ad | Değer |
+| --- | --- | --- |
+| Secret | `SUPABASE_STORAGE_S3_ENDPOINT`, `SUPABASE_STORAGE_S3_ACCESS_KEY_ID`, `SUPABASE_STORAGE_S3_SECRET_ACCESS_KEY` | Supabase > Storage > S3 Connection'da oluşturulan **salt okuma amaçlı** erişim anahtarı |
+| Secret | `BACKUP_STORAGE_CRYPT_PASSWORD`, `BACKUP_STORAGE_CRYPT_SALT` | Rastgele iki uzun parola (düz metin; iş akışı rclone için kendisi gizler). Parola yöneticisinde ve çevrimdışı ikinci bir yerde de saklayın. Kaybolursa belge yedeği açılamaz |
+| Variable | `SUPABASE_STORAGE_S3_REGION` | Supabase bölgesi (ör. `eu-central-1`) |
+| Variable | `STORAGE_BACKUP_ENABLED` | `true` (yalnızca yukarıdakiler girildikten sonra) |
+
+Belgeler dış depoda `storage/` altında rclone crypt ile şifreli durur; içerik
+ve klasör/dosya adları şifrelidir. Şifre çözülmüş görünümde (`vault:`)
+`current/belgeler/` güncel kopyadır; değişen veya silinen dosyaların eski hali
+`archive/<tarih>/belgeler/` altına taşınır. `storage/` için yaşam döngüsü kuralı
+koymayın (eski kopyaları elle temizleyin); sürümleme açık kalsın.
 
 ## 2. Otomatik çalışanlar
 
@@ -59,7 +75,16 @@ Belge yedeği (Storage, Aşama 6'da belgeler gelince açılır):
 | --- | --- | --- |
 | `db-tests.yml` | Her pull request | Testler + deneme verisiyle yedek al / boş veritabanına geri yükle / doğrula |
 | `backup-nightly.yml` | Her gece 03:00 (İstanbul) | Roller, şema, veri dökümü + satır sayıları + güvenlik durumu; age ile şifreli yükleme; ayın 1'inde aylık kopya |
-| `restore-test-monthly.yml` | Her ayın 1'i | En son yedeği çözer, boş Supabase veritabanına yükler, satır sayıları ve güvenlik durumunu karşılaştırır, tüm testleri çalıştırır |
+| `backup-nightly.yml` (belge işi) | Her gece, `STORAGE_BACKUP_ENABLED` açıksa | Veritabanından yol/boyut/SHA-256 manifesti alır, yetim dosya sayısını raporlar (silmez), `belgeler` bucket'ını şifreli dış depoya eşitler, sonra her dosyayı dış depodan indirip manifestle karşılaştırır |
+| `restore-test-monthly.yml` | Her ayın 1'i | En son yedeği çözer, boş Supabase ortamına yükler, satır sayıları ve güvenlik durumunu karşılaştırır, tüm testleri çalıştırır; belge yedeği açıksa dosyaları da geri yükleyip SHA-256 ile doğrular |
+
+`db-tests.yml` içindeki yedek işi her PR'da belge dosyalarını da dener:
+örnek PDF/JPEG/PNG yükler, veritabanını ve dosyaları (şifreli yerel depoya)
+yedekler, şifreli depoda okunabilir içerik ve dosya adı olmadığını denetler,
+bir dosyayı silip birini kesip birinin baytını değiştirerek doğrulamanın üçünü
+de yakaladığını görür, boş ikinci Supabase'e veritabanı ve dosyaları geri
+yükler, dosyaları API'den indirip SHA-256 karşılaştırır ve yetkisiz erişimin
+reddedildiğini denetler. Bu yalnızca deneme verisini kanıtlar.
 
 Başarısız zamanlanmış iş akışları için GitHub e-posta bildirimi gönderir.
 
@@ -73,9 +98,13 @@ Başarısız zamanlanmış iş akışları için GitHub e-posta bildirimi gönde
 
 Aşama 6'da (belgeler) ek olarak:
 
-- [ ] `STORAGE_BACKUP_ENABLED` açıldı, gece belge yedeği dış depoda görünüyor.
-- [ ] Belgelerin şifreli kopyadan geri yüklenmesi ayrıca denendi ve dosya
-      sağlama toplamları (`documents.sha256`) karşılaştırıldı.
+- [ ] `STORAGE_BACKUP_ENABLED` açıldı; gece belge işi yeşil ve dış depoda
+      `storage/` altında şifreli dosyalar görünüyor.
+- [ ] `restore-test-monthly.yml` elle çalıştırıldı; "Belge dosyalarını geri
+      yükle ve SHA-256 doğrula" adımı yeşil.
+- [ ] Crypt parolaları iki ayrı yerde saklanıyor.
+- [ ] `belge-dogrula` fonksiyonu canlı projede yayınlandı; bir deneme belgesi
+      yüklenince Geçmiş'te "Dosya yüklendi ve doğrulandı" görünüyor.
 
 ## 4. Acil durumda geri yükleme
 
@@ -96,4 +125,34 @@ sorundan hemen önceki ana dönün. Supabase'e erişilemiyorsa veya PITR yetmiyo
 4. Yeni projede Authentication > Email kaydını kapatın; uygulamanın Supabase
    adresini ve anahtarını yeni projeye çevirin.
 
-> Betik yalnızca **boş** bir veritabanına uygulanır. Canlı veritabanına asla çalıştırmayın.
+5. Belge dosyalarını geri yükleyin (yeni projede Storage > S3 Connection'dan
+   anahtar oluşturup rclone'a `target:` olarak, şifreli dış depoyu crypt
+   parolalarıyla `vault:` olarak tanımlayın):
+   ```bash
+   scripts/backup/storage-restore.sh vault: target:belgeler yedek/storage-manifest.tsv
+   ```
+   Betik dosyaları kopyalar, sonra her dosyayı hedeften indirip yol, boyut ve
+   SHA-256 ile karşılaştırır. Eksik (EKSİK), boyutu farklı (BOYUT FARKLI) veya
+   bozuk (BOZUK) dosya varsa listeler ve hata koduyla biter; bu durumda
+   `vault:archive/` altındaki eski kopyalara bakın.
+
+> Betikler yalnızca **boş** bir ortama uygulanır. Canlı veritabanına asla çalıştırmayın.
+
+## 5. Yarım ve yetim belge dosyaları
+
+- Yükleme sırasında bağlantı koparsa belge `bekliyor` kalır; uygulama aynı
+  kimlikle yeniden dener. 24 saati geçen bekleyen kayıtları iptal etmek için
+  (SQL editöründe, yönetici olarak):
+  ```sql
+  select private.expire_document_uploads();
+  ```
+  Bu fonksiyon şu an zamanlanmış değildir; ayda bir elle çalıştırılabilir.
+- Hiçbir etkin veya arşivlenmiş belgeye ait olmayan dosyaları **listelemek** için:
+  ```sql
+  select * from private.document_orphan_objects();
+  ```
+  Özeti sunucuda uyuşmadığı için iptal edilen yüklemelerin dosyaları da bu
+  listeye girer. Otomatik silme yoktur. Silmeden önce dosyanın dış yedekte olduğunu ve hiçbir
+  `documents` satırının `storage_path` değerine eşit olmadığını kontrol edin;
+  silme Supabase panelinden (Storage) yapılır. Etkin veya arşivlenmiş belgenin
+  dosyası asla silinmez.

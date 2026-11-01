@@ -29,7 +29,7 @@ Bu dosya yalnızca veritabanında şu an uygulanmış olanı özetler.
 | `cari_allocations` | Kısmi ödeme ve avans eşleştirmesi; toplam, hareket tutarını aşamaz |
 | `tasks` | İş takibi; proje boşsa şirket geneli |
 | `subcontractors` | Taşeron kartı (ad, iş kolu, iletişim, not). Finansal kimlik bağlı cari karttır; bir cari kart en fazla bir taşerona bağlanır |
-| `subcontractor_documents` | Taşeron belge bilgisi (ad, numara, geçerlilik); dosya eki yok |
+| `subcontractor_documents` | Taşeron belge bilgisi (ad, numara, geçerlilik); dosya eki yok (dosyalı arşiv: `documents`, Aşama 6) |
 | `subcontractor_projects` | Taşeronun çalıştığı proje ve dönem; aynı projede çakışan dönem yok |
 | `personnel` | Personel kimliği (ad, görev, iş kolu, çalışma ilişkisi, taşeron). TCKN/banka/adres yok |
 | `personnel_contacts` | Personel telefonu; ayrı izinle (`personel_iletisim.read`) okunur |
@@ -194,6 +194,42 @@ tutarlarını göremez. Şablonlar yönetici tarafından değiştirilebilir.
 Şantiye şefi kendi projesinde hızlı gider girer ve yalnızca kendi girdiği
 giderleri görür; başkasının giderini, geliri ve raporları göremez, onaylayamaz,
 ödeme kaydedemez.
+
+## Evrak arşivi (Aşama 6)
+
+- `documents`: belge bilgisi ve dosya kaydı (tür, ad, tarih, açıklama; tek ana
+  bağlantı `proje` / `masraf_merkezi` / `finans_belgesi` / `sozlesme`; türetilmiş
+  proje veya masraf merkezi, cari, taşeron, DEMO; `mime_type`, `byte_size`,
+  `sha256`, `storage_path`; durum `bekliyor` → `yuklendi` → `arsivlendi` / `iptal`;
+  `replaces_id`). `document_events`: değiştirilemez geçmiş.
+- Dosyalar özel `belgeler` bucket'ında (25 MB, PDF/JPEG/PNG), yol
+  `<uuid>/<uuid>.<uzantı>`. `storage.objects` politikaları yalnızca insert (kendi
+  ayrılmış yoluna) ve select (belgeyi görebilen) içerir; update ve delete yok.
+  Politikalar `private.install_storage_policies()` ile kurulur, `post_restore()` de çağırır.
+- Yazma yalnızca RPC'lerle: `reserve_document_upload`, `complete_document_upload`,
+  `archive_document`, `cancel_document`, `relink_document`. Tamamlama
+  `belge-dogrula` Edge Function'ı üzerinden: Storage'daki gerçek baytların
+  SHA-256'sı sunucuda hesaplanır (`record_document_server_hash`, yalnızca
+  `service_role`); beyanla aynı değilse belge yüklendi olmaz, iptal edilir. Bakım:
+  `private.expire_document_uploads()`, `private.document_orphan_objects()`
+  (yalnızca listeler), `private.document_storage_manifest()` (yedek doğrulaması).
+- iOS: `DocumentUploader` (cihazda sakla → yer ayır → gönder → sunucuda doğrula; aynı
+  kimlikle yeniden dene), `FilePendingUploadStore`, `DocumentFileValidator`
+  (içerikten tür, boyut), `SHA256Digest`. Ekranlar `ios/RDYonetim/Belgeler/`.
+- Kararlar: [karar 0007](decisions/0007-asama-6-kararlari.md).
+
+| İzin | Yönetici | Muhasebe | Proje müdürü (proje) | Şantiye şefi (proje) | İdari işler | Görüntüleyici |
+| --- | --- | --- | --- | --- | --- | --- |
+| `belge.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `belge.finans_read` | ✓ | ✓ | ✓ | | | |
+| `belge.write` | ✓ | ✓ | ✓ | ✓ | ✓ | |
+| `belge.manage` | ✓ | ✓ | ✓ | | | |
+
+`belge.finans_read` proje ve genel belgelerinde fatura, fiş ve sözleşme
+türlerini açar. Gider/gelire bağlı belge için o gider/geliri görme yetkisi,
+sözleşmeye bağlı belge için `sozlesme.read`/`sozlesme.write` de gerekir. Bu
+yüzden şantiye şefi irsaliye, tutanak ve ruhsatı görür ve ekler; fatura, fiş
+ve sözleşme dosyalarını göremez.
 
 ## Etkin izin
 

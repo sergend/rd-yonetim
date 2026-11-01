@@ -384,6 +384,10 @@ struct ContractDetailView: View {
       }
       if model.canSeeFinance { teminatSection; paymentsSection }
       versionsSection
+      if app.access.can(.belgeRead, in: model.contract.projectId) {
+        LinkedDocumentsSection(link: .contract(model.contract.id), linkTitle: model.contract.contractNo,
+                               projectId: model.contract.projectId, app: app)
+      }
       FinanceEventsSection(events: model.events.prefix(20).map { $0 })
     }
     .listStyle(.insetGrouped)

@@ -50,11 +50,18 @@ jobs:
         with:
           path: ios/RDCore/.build
           key: rdcore-linux-v2-${{ hashFiles('ios/RDCore/Package.resolved') }}
-      - name: Yerel Supabase (Auth + REST) başlat, deneme verisini yükle
-        run: supabase start -x studio,imgproxy,inbucket,realtime,storage-api,edge-runtime,logflare,vector,supavisor,postgres-meta
+      - name: Yerel Supabase (Auth + REST + Storage + belge doğrulama fonksiyonu) başlat, deneme verisini yükle
+        run: supabase start -x studio,imgproxy,mailpit,realtime,logflare,vector,supavisor,postgres-meta
       - name: Repository'leri gerçek API'ye karşı test et
         run: |
           eval "$(supabase status -o env | grep -E '^(API_URL|ANON_KEY)=')"
+          # belge-dogrula fonksiyonu hazır olana kadar bekle (oturumsuz isteğe 401 döner).
+          for i in $(seq 1 30); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API_URL/functions/v1/belge-dogrula" -d '{}')"
+            [ "$code" = 401 ] && break
+            sleep 2
+          done
+          echo "belge-dogrula: HTTP $code"
           docker run --rm --network host -e RD_SUPABASE_URL="$API_URL" -e RD_SUPABASE_ANON_KEY="$ANON_KEY" \
             -v "$PWD/ios:/w" -w /w/RDCore "$SWIFT_IMAGE" \
             swift test $LINUX_LINK_FLAGS --filter RDSupabaseIntegrationTests

@@ -17,7 +17,8 @@ Mimari: [Teknik Mimari Önerisi](https://claude.ai/artifact/6gdNhhjhSuDdodf55R3d
 | 2 | Taşeron, personel, ekip ve proje görevlendirmeleri | Tamamlandı |
 | 3 | Puantaj: aylık tablo, hızlı giriş, özet, onay ve kilit (finansal yükümlülük üretmez) | Tamamlandı |
 | 4 | Taşeron sözleşmesi, imalat (metraj), hakediş, teminat, cari deftere işleme ve ödeme | Tamamlandı |
-| 5 | Şirket gider, gelir ve borç/alacak: onay, kısmi ödeme/tahsilat, bekleyen borçlar, raporlar | İncelemede |
+| 5 | Şirket gider, gelir ve borç/alacak: onay, kısmi ödeme/tahsilat, bekleyen borçlar, raporlar | Tamamlandı |
+| 6 | Evrak arşivi: tarama, fotoğraf/PDF, özel Storage, SHA-256 bütünlük, dosya yedeği ve geri yükleme testi | İncelemede |
 
 ## Yedekleme durumu (önemli)
 
@@ -30,9 +31,12 @@ Mimari: [Teknik Mimari Önerisi](https://claude.ai/artifact/6gdNhhjhSuDdodf55R3d
   yükleme testi) şu üçü tamamlanmadan çalışmaz: canlı Supabase projesi ve
   `production-backup` ortamındaki gizli anahtarlar, Supabase dışındaki S3 uyumlu
   dış yedek deposu, `BACKUP_ENABLED = true` değişkeni.
-- Belge (Storage) yedeği de kapalıdır. Belgeler Aşama 6'da geldiğinde
-  `STORAGE_BACKUP_ENABLED` açılacak ve belgelerin geri yüklenmesi ayrıca test
-  edilecektir; bugünkü geri yükleme testi yalnızca veritabanını kapsar.
+- Belge dosyası (Storage) yedeği de kapalıdır (`STORAGE_BACKUP_ENABLED`). Betikler
+  hazır ve her PR'da test edilir: deneme belgeleri şifreli yerel depoya yedeklenir,
+  boş ikinci ortama geri yüklenir ve her dosya indirilip SHA-256 ile
+  karşılaştırılır; eksik, kesik veya bozuk dosya işi kırmızıya çevirir. Bu da
+  yalnızca deneme verisini kanıtlar; canlı belgeler henüz hiçbir yere
+  yedeklenmiyor.
 
 Kurulum ve gerçek veriden önceki zorunlu kontrol listesi:
 [docs/runbook-backup-restore.md](docs/runbook-backup-restore.md).
@@ -67,6 +71,7 @@ npx supabase db reset      # sıfırdan kur
 
 iOS uygulamasını Mac'te açma ve test etme: [docs/ios-mac-setup.md](docs/ios-mac-setup.md).
 Gider/gelir kuralları: [docs/gider-gelir-hesaplama.md](docs/gider-gelir-hesaplama.md).
+Evrak arşivi kararları: [docs/decisions/0007-asama-6-kararlari.md](docs/decisions/0007-asama-6-kararlari.md).
 Tasarım sistemi: [docs/design-system.md](docs/design-system.md). Logo ve ikon: [docs/brand-assets.md](docs/brand-assets.md).
 
 ## Güvenlik kuralları

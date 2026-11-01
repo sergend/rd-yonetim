@@ -54,6 +54,11 @@ public enum PermissionKey: String, Sendable, CaseIterable {
   case gelirCollect = "gelir.collect"
   case finansRaporRead = "finans_rapor.read"
   case finansKategoriManage = "finans_kategori.manage"
+  // Aşama 6: evrak arşivi. Görüntüleme ve ekleme ayrı; finansal belge türleri ayrı izin ister.
+  case belgeRead = "belge.read"
+  case belgeFinansRead = "belge.finans_read"
+  case belgeWrite = "belge.write"
+  case belgeManage = "belge.manage"
 }
 
 /// my_permissions() RPC satırı: project_id boşsa genel izin.

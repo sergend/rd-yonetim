@@ -55,16 +55,36 @@ jobs:
           rm -f "$RUNNER_TEMP/age-identity.txt"
           echo "Yedek tarihi: $(cat "$RUNNER_TEMP/backup/created-at.txt")"
 
-      - name: Boş hedef veritabanını başlat
+      - name: Boş hedef Supabase'i başlat (veritabanı, Auth, REST, Storage)
         run: |
           mkdir -p "$RUNNER_TEMP/restore-target"
           cd "$RUNNER_TEMP/restore-target"
           supabase init --force
-          sed -i 's/^project_id = .*/project_id = "restore-target"/; s/^port = 54322/port = 54422/; s/^shadow_port = 54320/shadow_port = 54420/' supabase/config.toml
-          supabase db start
+          sed -i 's/^project_id = .*/project_id = "restore-target"/' supabase/config.toml
+          sed -i -E 's/^(port|shadow_port) = 543([0-9][0-9])$/\1 = 544\2/' supabase/config.toml
+          supabase start -x studio,imgproxy,mailpit,realtime,edge-runtime,logflare,vector,supavisor,postgres-meta
 
       - name: Geri yükle ve doğrula
         run: scripts/backup/restore-verify.sh "$RUNNER_TEMP/backup" "$TARGET_DB_URL"
+
+      - name: Belge dosyalarını şifreli yedekten geri yükle ve SHA-256 ile doğrula
+        if: vars.STORAGE_BACKUP_ENABLED == 'true'
+        env:
+          CRYPT_PASSWORD: ${{ secrets.BACKUP_STORAGE_CRYPT_PASSWORD }}
+          CRYPT_SALT: ${{ secrets.BACKUP_STORAGE_CRYPT_SALT }}
+        run: |
+          test -f "$RUNNER_TEMP/backup/storage-manifest.tsv" || { echo "Yedekte belge bütünlük listesi yok" >&2; exit 1; }
+          export RCLONE_CONFIG_VAULT_TYPE=crypt
+          export RCLONE_CONFIG_VAULT_REMOTE="backup:$BUCKET/storage"
+          export RCLONE_CONFIG_VAULT_PASSWORD="$(rclone obscure "$CRYPT_PASSWORD")"
+          export RCLONE_CONFIG_VAULT_PASSWORD2="$(rclone obscure "$CRYPT_SALT")"
+          eval "$(cd "$RUNNER_TEMP/restore-target" && supabase status -o env | grep -E '^(STORAGE_S3_URL|S3_PROTOCOL_ACCESS_KEY_ID|S3_PROTOCOL_ACCESS_KEY_SECRET|S3_PROTOCOL_REGION)=')"
+          export RCLONE_CONFIG_TARGET_TYPE=s3 RCLONE_CONFIG_TARGET_PROVIDER=Other RCLONE_CONFIG_TARGET_FORCE_PATH_STYLE=true
+          export RCLONE_CONFIG_TARGET_ENDPOINT="$STORAGE_S3_URL" RCLONE_CONFIG_TARGET_REGION="$S3_PROTOCOL_REGION"
+          export RCLONE_CONFIG_TARGET_ACCESS_KEY_ID="$S3_PROTOCOL_ACCESS_KEY_ID" RCLONE_CONFIG_TARGET_SECRET_ACCESS_KEY="$S3_PROTOCOL_ACCESS_KEY_SECRET"
+          # Gece yedeği ile veritabanı dökümü arasındaki saatlerde eklenen dosya
+          # henüz yedekte olmayabilir; bu durumda doğrulama hata verir ve bildirilir.
+          scripts/backup/storage-restore.sh vault: target:belgeler "$RUNNER_TEMP/backup/storage-manifest.tsv"
 
       - name: Geri yüklenen veritabanında pgTAP testleri
         run: PGPASSWORD=postgres pg_prove -h 127.0.0.1 -p 54422 -U postgres -d postgres supabase/tests/*.test.sql

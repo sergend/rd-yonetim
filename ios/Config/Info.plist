@@ -6,6 +6,8 @@
 	<string>$(SUPABASE_URL)</string>
 	<key>SUPABASE_ANON_KEY</key>
 	<string>$(SUPABASE_ANON_KEY)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Fiş, fatura ve tutanakları taramak için kamera kullanılır.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<!-- Yalnızca yerel geliştirme sunucusu için düz HTTP; canlı adres HTTPS'tir. -->

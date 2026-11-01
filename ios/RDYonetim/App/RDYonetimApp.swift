@@ -33,13 +33,27 @@ final class AppModel {
   /// Formlardaki proje ve masraf merkezi seçicileri için önbellek.
   private(set) var projects: [Project] = []
   private(set) var costCenters: [CostCenter] = []
+  /// Gönderilmemiş belgelerin cihazdaki kopyaları (ağ kesilse de dosya kaybolmaz).
+  let documentStore: PendingUploadStore
 
-  init(repositories: Repositories) {
+  init(repositories: Repositories, documentStore: PendingUploadStore? = nil) {
     self.repositories = repositories
     self.session = SessionViewModel(repositories: repositories)
+    self.documentStore = documentStore ?? FilePendingUploadStore(directory: AppModel.pendingUploadDirectory)
+  }
+
+  /// Application Support altında, yedeklemeye (iCloud) dahil edilmeyen klasör.
+  private static var pendingUploadDirectory: URL {
+    var url = URL.applicationSupportDirectory.appending(path: "BekleyenBelgeler", directoryHint: .isDirectory)
+    try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    var values = URLResourceValues()
+    values.isExcludedFromBackup = true
+    try? url.setResourceValues(values)
+    return url
   }
 
   var access: AccessControl { session.context?.access ?? .none }
+  var userId: UUID? { session.context?.profile.id }
 
   func reloadLookups() async {
     if access.canAnywhere(.projeRead) {

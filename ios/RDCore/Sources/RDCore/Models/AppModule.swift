@@ -4,7 +4,7 @@ import Foundation
 /// gösterilir ve veri girişi sunmaz.
 public enum AppModule: String, CaseIterable, Identifiable, Sendable {
   case projeler, isTakibi, taseronlar, personel, ekipler, cari, genelGider
-  case puantaj, imalat, taseronSozlesmeleri, hakedis, giderler, borclar, gelirler, raporlar, daireler, kullanicilar
+  case puantaj, imalat, taseronSozlesmeleri, hakedis, giderler, borclar, gelirler, raporlar, belgeler, daireler, kullanicilar
 
   public var id: String { rawValue }
 
@@ -26,6 +26,7 @@ public enum AppModule: String, CaseIterable, Identifiable, Sendable {
     case .gelirler: "Gelir ve tahsilat"
     case .daireler: "Daireler ve satış"
     case .raporlar: "Gider ve gelir raporları"
+    case .belgeler: "Belgeler"
     case .kullanicilar: "Kullanıcılar ve yetkiler"
     }
   }
@@ -49,6 +50,7 @@ public enum AppModule: String, CaseIterable, Identifiable, Sendable {
     case .gelirler: "arrow.down.circle"
     case .daireler: "house"
     case .raporlar: "chart.bar.doc.horizontal"
+    case .belgeler: "doc.on.doc"
     case .kullanicilar: "person.badge.key"
     }
   }
@@ -56,7 +58,7 @@ public enum AppModule: String, CaseIterable, Identifiable, Sendable {
   public var isAvailable: Bool {
     switch self {
     case .projeler, .isTakibi, .taseronlar, .personel, .ekipler, .puantaj, .cari, .genelGider,
-         .imalat, .taseronSozlesmeleri, .hakedis, .giderler, .borclar, .gelirler, .raporlar: true
+         .imalat, .taseronSozlesmeleri, .hakedis, .giderler, .borclar, .gelirler, .raporlar, .belgeler: true
     default: false
     }
   }
@@ -79,6 +81,7 @@ public enum AppModule: String, CaseIterable, Identifiable, Sendable {
     case .puantaj: .puantajRead
     case .daireler: .projeRead
     case .raporlar: .finansRaporRead
+    case .belgeler: .belgeRead
     case .kullanicilar: .kullaniciManage
     }
   }

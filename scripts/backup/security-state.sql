@@ -29,4 +29,15 @@ select 'trigger:' || n.nspname || '.' || c.relname || ':' || t.tgname
   join pg_namespace n on n.oid = c.relnamespace
  where not t.tgisinternal
    and (n.nspname in ('public', 'audit') or t.tgname = 'on_auth_user_created')
+union all
+-- Belge dosyaları: storage.objects politikaları (şema dökümüne girmez;
+-- post_restore() yeniden kurar) ve bucket'ların herkese açık olmaması.
+select 'storage-policy:' || p.polname || ':' || p.polcmd::text || ':' || coalesce(pg_get_expr(p.polqual, p.polrelid)::text, '')
+       || ':' || coalesce(pg_get_expr(p.polwithcheck, p.polrelid)::text, '')
+  from pg_policy p
+ where p.polrelid = 'storage.objects'::regclass
+union all
+select 'bucket:' || b.id || ':public=' || b.public::text || ':limit=' || coalesce(b.file_size_limit::text, '')
+       || ':types=' || coalesce(array_to_string(b.allowed_mime_types, ','), '')
+  from storage.buckets b
  order by 1;
