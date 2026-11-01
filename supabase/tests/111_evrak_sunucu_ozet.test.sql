@@ -3,7 +3,7 @@
 -- service_role yazar) beyan edilenle aynı değilse belge "yüklendi" olamaz.
 -- Özellikle aynı boyut ve aynı MIME türünde farklı içerik reddedilir.
 begin;
-select plan(26);
+select plan(27);
 
 create temp table ctx (k text primary key, v uuid) on commit drop;
 create temp table paths (k text primary key, v text) on commit drop;
@@ -45,6 +45,12 @@ select ok(has_function_privilege('service_role', 'public.record_document_server_
   'yalnızca sunucu (service_role, Edge Function) sunucu özetini yazar');
 select ok(not has_function_privilege('anon', 'public.document_upload_target(uuid)', 'execute'),
   'oturumsuz istek doğrulama hedefini soramaz');
+-- Geri yükleme: dump'tan oluşan fonksiyon varsayılan ayrıcalıklarla açılabilir;
+-- post_restore() → harden_api_privileges() bunu kapatır.
+grant execute on function public.record_document_server_hash(uuid, text, bigint) to authenticated;
+select private.harden_api_privileges();
+select ok(not has_function_privilege('authenticated', 'public.record_document_server_hash(uuid, text, bigint)', 'execute'),
+  'geri yüklenen ortamda da sunucu özeti fonksiyonu kullanıcıya kapalı (harden_api_privileges)');
 
 -- ------------------------------------------------ 2) doğrulamasız tamamlama yok
 select tests.authenticate_as(pg_temp.c('sef'));

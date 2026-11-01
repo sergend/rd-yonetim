@@ -261,3 +261,71 @@ grant execute on function public.document_upload_target(uuid) to authenticated;
 revoke execute on function public.record_document_server_hash(uuid, text, bigint) from public, anon, authenticated;
 grant execute on function public.record_document_server_hash(uuid, text, bigint) to service_role;
 revoke execute on function private.tg_document_server_hash_guard() from public, anon, authenticated;
+
+-- post_restore() bu fonksiyonu çağırır: geri yüklenen ortamda da sunucu özeti
+-- fonksiyonu oturum açmış kullanıcıya kapalı kalır (önceki tanım + bir satır).
+create or replace function private.harden_api_privileges()
+returns void
+language plpgsql
+set search_path = ''
+as $$
+begin
+  revoke all on all tables    in schema public from anon;
+  revoke all on all sequences in schema public from anon;
+  revoke execute on all functions in schema public  from public, anon;
+  revoke execute on all functions in schema private from public, anon;
+  revoke execute on all functions in schema audit   from public, anon, authenticated;
+  revoke truncate, references, trigger, delete on all tables in schema public from authenticated;
+
+  -- İzin kataloğu yalnızca migration ile değişir.
+  revoke insert, update on public.permissions from authenticated;
+  -- Profil yalnızca Auth trigger'ı ile oluşur; e-posta ve telefon kapalı.
+  revoke select, insert, update on public.profiles from authenticated;
+  grant select (id, full_name, is_active, created_at, created_by, updated_at, updated_by, version)
+    on public.profiles to authenticated;
+  grant update (full_name, phone, is_active) on public.profiles to authenticated;
+
+  -- Cari defter ve eşleştirmeler yalnızca RPC'lerle yazılır.
+  revoke insert, update on public.cari_entries     from authenticated;
+  revoke insert, update on public.cari_allocations from authenticated;
+
+  -- Puantaj yalnızca RPC'lerle yazılır; durum tanımları migration ile değişir.
+  revoke insert, update on public.puantaj_status_definitions from authenticated;
+  revoke insert, update on public.puantaj_periods            from authenticated;
+  revoke insert, update on public.puantaj_entries            from authenticated;
+  revoke insert, update on public.puantaj_period_events      from authenticated;
+
+  -- Sözleşme, imalat, hakediş, teminat ve ödeme yalnızca RPC'lerle yazılır.
+  revoke insert, update on public.tax_rules              from authenticated;
+  revoke insert, update on public.payment_sources        from authenticated;
+  revoke insert, update on public.contracts              from authenticated;
+  revoke insert, update on public.contract_versions      from authenticated;
+  revoke insert, update on public.contract_items         from authenticated;
+  revoke insert, update on public.contract_version_taxes from authenticated;
+  revoke insert, update on public.work_quantities        from authenticated;
+  revoke insert, update on public.hakedis                from authenticated;
+  revoke insert, update on public.hakedis_lines          from authenticated;
+  revoke insert, update on public.hakedis_quantity_links from authenticated;
+  revoke insert, update on public.hakedis_puantaj_links  from authenticated;
+  revoke insert, update on public.hakedis_adjustments    from authenticated;
+  revoke insert, update on public.teminat_releases       from authenticated;
+  revoke insert, update on public.finance_payments       from authenticated;
+  revoke insert, update on public.finance_events         from authenticated;
+
+  -- Gider, gelir, ödeme ve tahsilat yalnızca RPC'lerle yazılır.
+  revoke insert, update on public.finance_categories      from authenticated;
+  revoke insert, update on public.finance_documents       from authenticated;
+  revoke insert, update on public.finance_settlements     from authenticated;
+  revoke insert, update on public.finance_document_events from authenticated;
+
+  -- Belge arşivi yalnızca RPC'lerle yazılır.
+  revoke insert, update on public.documents       from authenticated;
+  revoke insert, update on public.document_events from authenticated;
+  -- Sunucu özeti yalnızca belge-dogrula Edge Function'ı (service_role) yazar.
+  -- Geri yüklenen ortamda varsayılan ayrıcalıklar bunu yeniden açmasın.
+  revoke execute on function public.record_document_server_hash(uuid, text, bigint) from authenticated;
+end;
+$$;
+revoke execute on function private.harden_api_privileges() from public, anon, authenticated;
+
+select private.harden_api_privileges();
