@@ -15,7 +15,7 @@ union all
 select 'column:' || table_schema || '.' || table_name || '.' || column_name || ':' || grantee || ':' || privilege_type
   from information_schema.column_privileges
  where table_schema = 'public'
-   and table_name = 'profiles'
+   and table_name in ('profiles', 'purchase_order_lines')
    and grantee in ('anon', 'authenticated')
 union all
 select 'rls:' || n.nspname || '.' || c.relname || ':' || c.relrowsecurity

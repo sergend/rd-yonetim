@@ -23,6 +23,9 @@ $cli db dump --db-url "$SUPABASE_DB_URL" --data-only --use-copy \
 
 psql "$SUPABASE_DB_URL" -X -A -t -v ON_ERROR_STOP=1 -f "$here/row-counts.sql"  > "$out/row-counts.txt"
 psql "$SUPABASE_DB_URL" -X -A -t -v ON_ERROR_STOP=1 -f "$here/security-state.sql" > "$out/security-state.txt"
+# Stok miktarları (defter toplamı) ve sipariş teslim miktarları: geri yüklemeden
+# sonra birebir aynı olmalı.
+psql "$SUPABASE_DB_URL" -X -A -t -v ON_ERROR_STOP=1 -f "$here/stock-state.sql" > "$out/stock-state.txt"
 # Belge dosyalarının yol, boyut ve SHA-256 listesi. Veritabanı yedeği dosya
 # içeriklerini taşımaz: dosyalar storage-backup.sh ile ayrıca yedeklenir ve
 # bu listeyle doğrulanır. Henüz belge yoksa liste boş olabilir.
