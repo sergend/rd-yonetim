@@ -175,7 +175,12 @@ extension InMemoryBackend {
           linkAccess(attach: true, d.link, d.kind, project: d.projectId) else {
       throw RepositoryError.forbidden("Bu yola dosya yükleme yetkiniz yok")
     }
-    storageObjects[path] = (data, mimeType)
+    var stored = data
+    if corruptNextUpload, !stored.isEmpty {
+      corruptNextUpload = false
+      stored[stored.count - 1] ^= 0xFF
+    }
+    storageObjects[path] = (stored, mimeType)
     if dropNextUploadResponse {
       dropNextUploadResponse = false
       throw RepositoryError.network  // dosya sunucuya ulaştı, yanıt kayboldu
@@ -191,7 +196,11 @@ extension InMemoryBackend {
     var d = archiveDocuments[index]
     switch d.status {
     case .yuklendi, .arsivlendi: return d
-    case .iptal: throw RepositoryError.conflict("Bu yükleme iptal edilmiş veya süresi dolmuş; yeniden başlatın")
+    case .iptal:
+      if d.cancelReason == "Sunucuda hesaplanan özet beyan edilen dosyayla uyuşmuyor" {
+        throw RepositoryError.conflict("Sunucuya ulaşan dosya cihazdakiyle aynı değil; yeniden yükleyin")
+      }
+      throw RepositoryError.conflict("Bu yükleme iptal edilmiş veya süresi dolmuş; yeniden başlatın")
     case .bekliyor: break
     }
     guard let object = storageObjects[d.storagePath] else { throw RepositoryError.notFound }
@@ -199,6 +208,16 @@ extension InMemoryBackend {
       throw RepositoryError.validation("Yüklenen dosyanın boyutu beklenenden farklı")
     }
     guard object.mimeType == d.mimeType else { throw RepositoryError.validation("Yüklenen dosyanın türü beklenenden farklı") }
+    // Sunucu doğrulaması (belge-dogrula): gerçek baytların özeti beyan edilenle aynı olmalı.
+    guard SHA256Digest.hex(object.data) == d.sha256 else {
+      d.status = .iptal
+      d.cancelReason = "Sunucuda hesaplanan özet beyan edilen dosyayla uyuşmuyor"
+      d.cancelledAt = Date()
+      d.version += 1
+      archiveDocuments[index] = d
+      documentEvent(id, "ozet_uyusmadi", from: .bekliyor, to: .iptal, reason: d.cancelReason)
+      throw RepositoryError.conflict("Sunucuya ulaşan dosya cihazdakiyle aynı değil; yeniden yükleyin")
+    }
     if let replaces = d.replacesId, let old = archiveDocuments.firstIndex(where: { $0.id == replaces }) {
       archiveDocuments[old].status = .iptal
       archiveDocuments[old].cancelReason = "Yeni dosyayla değiştirildi"

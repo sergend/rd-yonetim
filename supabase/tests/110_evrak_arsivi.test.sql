@@ -33,8 +33,21 @@ create function pg_temp.put(p_path text, p_size bigint default 100, p_mime text 
   returns void language sql as $$
   insert into storage.objects (bucket_id, name, owner, owner_id, metadata)
   values ('belgeler', p_path, auth.uid(), auth.uid()::text, jsonb_build_object('size', p_size, 'mimetype', p_mime)) $$;
-create function pg_temp.complete(p_id text) returns public.documents language sql
-  as $$ select public.complete_document_upload(pg_temp.c(p_id)) $$;
+-- belge-dogrula Edge Function'ının sunucu adımı (migration 20261107000000):
+-- dosya dürüstçe yüklendiyse sunucunun hesapladığı özet beyan edilenle aynıdır.
+-- Sunucu özeti yalnızca service_role yazar; burada postgres adına (security definer).
+create function pg_temp.server_verify(p_id text) returns void language plpgsql security definer as $$
+begin
+  if exists (select 1 from public.documents d join storage.objects o on o.bucket_id = 'belgeler' and o.name = d.storage_path
+              where d.id = pg_temp.c(p_id) and d.status = 'bekliyor') then
+    perform public.record_document_server_hash(d.id, d.sha256, d.byte_size) from public.documents d where d.id = pg_temp.c(p_id);
+  end if;
+end $$;
+create function pg_temp.complete(p_id text) returns public.documents language plpgsql as $$
+begin
+  perform pg_temp.server_verify(p_id);
+  return public.complete_document_upload(pg_temp.c(p_id));
+end $$;
 -- Tam yükleme: ayır + yükle + tamamla.
 create function pg_temp.upload(p_id text, p_kind text, p_link_type text, p_link text, p_sha text,
                                p_replaces text default null) returns void language plpgsql as $$

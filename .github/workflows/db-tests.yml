@@ -52,8 +52,8 @@ jobs:
       - name: PostgreSQL istemcisi, pg_prove ve rclone
         run: sudo apt-get update && sudo apt-get install -y postgresql-client libtap-parser-sourcehandler-pgtap-perl rclone
 
-      - name: Kaynak Supabase'i başlat (veritabanı, Auth, REST, Storage)
-        run: supabase start -x "$SUPABASE_EXCLUDE"
+      - name: Kaynak Supabase'i başlat (veritabanı, Auth, REST, Storage, belge doğrulama fonksiyonu)
+        run: supabase start -x "${SUPABASE_EXCLUDE/edge-runtime,/}"
 
       - name: Deneme belgeleri yükle (gerçek yükleme akışıyla)
         run: |

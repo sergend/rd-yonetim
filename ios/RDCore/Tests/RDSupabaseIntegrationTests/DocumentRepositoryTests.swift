@@ -157,16 +157,53 @@ final class DocumentRepositoryTests: XCTestCase {
       _ = try await repos.documents.completeUpload(id: req.id)
       XCTFail("boyutu farklı dosya tamamlanmamalı")
     } catch let error as RepositoryError {
-      guard case .validation = error else { return XCTFail("\(error)") }
+      guard case .conflict = error else { return XCTFail("\(error)") }
     }
-    let cancelled = try await repos.documents.cancel(id: req.id, reason: nil)
-    XCTAssertEqual(cancelled.status, .iptal)
+    let cancelled = try await repos.documents.document(id: req.id)
+    XCTAssertEqual(cancelled.status, .iptal, "sunucu boyutu farklı dosyayı reddeder ve yüklemeyi iptal eder")
     do {
       _ = try await repos.documents.reserveUpload(req)
       XCTFail("iptal edilmiş kimlik yeniden kullanılmamalı")
     } catch let error as RepositoryError {
       guard case .conflict = error else { return XCTFail("\(error)") }
     }
+  }
+
+  /// İnceleme bulgusu: aynı MIME türü ve aynı boyutta, SHA-256'sı farklı içerik.
+  /// Sunucu (belge-dogrula) gerçek baytları özetler; belge "yüklendi" olmaz.
+  func testServerRejectsSameSizeSameTypeDifferentContent() async throws {
+    let repos = try await signedIn("muhasebe@example.test")
+    let project = try await sivas(repos)
+    let declared = pdf("beyan")
+    var other = declared
+    other[other.count - 8] ^= 0x01  // aynı boyut, aynı PDF imzası, farklı bayt
+    XCTAssertEqual(DocumentFileValidator.detect(other), .pdf)
+    XCTAssertNotEqual(SHA256Digest.hex(other), SHA256Digest.hex(declared))
+    let req = request(declared, kind: .tutanak, link: .project(project.id), title: "Özet testi")
+    let reserved = try await repos.documents.reserveUpload(req)
+    try await repos.documents.uploadFile(path: reserved.storagePath, data: other, mimeType: .pdf)
+    do {
+      _ = try await repos.documents.completeUpload(id: req.id)
+      XCTFail("farklı içerik yüklendi sayılmamalı")
+    } catch let error as RepositoryError {
+      XCTAssertEqual(error, .conflict("Sunucuya ulaşan dosya cihazdakiyle aynı değil; yeniden yükleyin"))
+    }
+    let doc = try await repos.documents.document(id: req.id)
+    XCTAssertEqual(doc.status, .iptal)
+    let events = try await repos.documents.events(documentId: req.id)
+    XCTAssertEqual(events.map(\.action), ["rezerve", "ozet_uyusmadi"])
+    let listed = try await repos.documents.documents(filter: DocumentFilter(link: .project(project.id)))
+    XCTAssertFalse(listed.contains { $0.id == req.id }, "etkin listede görünmez")
+
+    // Yükleyici aynı yerel dosyayı yeni kimlikle gönderir ve doğrulanır.
+    let store = InMemoryPendingUploadStore()
+    let uploader = DocumentUploader(repository: repos.documents, store: store)
+    let staged = try await uploader.stage(data: declared, kind: .tutanak, title: "Özet testi", description: nil,
+                                          documentDate: .today(), link: .project(project.id), linkTitle: project.name)
+    let done = try await uploader.run(staged)
+    XCTAssertEqual(done.status, .yuklendi)
+    let downloaded = try await repos.documents.downloadFile(path: done.storagePath)
+    XCTAssertEqual(SHA256Digest.hex(downloaded), done.sha256)
   }
 
   func testAttachingInvoiceToApprovedExpenseDoesNotChangeIt() async throws {

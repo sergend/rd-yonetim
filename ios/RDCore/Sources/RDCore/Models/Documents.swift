@@ -281,6 +281,7 @@ public struct DocumentEvent: Identifiable, Hashable, Codable, Sendable {
     case "degistirildi": "Yeni dosyayla değiştirildi"
     case "baglanti_degisti": "Bağlantısı değiştirildi"
     case "suresi_doldu": "Yükleme süresi doldu"
+    case "ozet_uyusmadi": "Sunucuya ulaşan dosya beyan edilenle uyuşmadı"
     default: action.replacingOccurrences(of: "_", with: " ")
     }
   }

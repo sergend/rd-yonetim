@@ -11,6 +11,15 @@ her gece Supabase dışına şifreli yedek, aylık otomatik geri yükleme testi.
 2. Authentication > Providers > Email: **Allow new users to sign up = kapalı**.
 3. Veritabanı bağlantı adresi: Connect > **Session pooler** URI (şifre dahil).
 
+4. Belge doğrulama fonksiyonunu yayınlayın (belgeler bu olmadan **yüklenemez**;
+   yükleme "Doğrulama servisine ulaşılamadı" hatasıyla bekler):
+   ```bash
+   supabase functions deploy belge-dogrula --project-ref <proje-kimliği>
+   ```
+   Fonksiyon `SUPABASE_URL`, `SUPABASE_ANON_KEY` ve `SUPABASE_SERVICE_ROLE_KEY`
+   değerlerini Supabase'in kendi ortamından alır; ayrıca gizli anahtar girilmez
+   ve sunucu anahtarı uygulamaya hiç gitmez.
+
 ### Dış yedek deposu (S3 uyumlu, Supabase dışında)
 
 Örnek: Cloudflare R2 veya Backblaze B2.
@@ -94,6 +103,8 @@ Aşama 6'da (belgeler) ek olarak:
 - [ ] `restore-test-monthly.yml` elle çalıştırıldı; "Belge dosyalarını geri
       yükle ve SHA-256 doğrula" adımı yeşil.
 - [ ] Crypt parolaları iki ayrı yerde saklanıyor.
+- [ ] `belge-dogrula` fonksiyonu canlı projede yayınlandı; bir deneme belgesi
+      yüklenince Geçmiş'te "Dosya yüklendi ve doğrulandı" görünüyor.
 
 ## 4. Acil durumda geri yükleme
 
@@ -140,7 +151,8 @@ sorundan hemen önceki ana dönün. Supabase'e erişilemiyorsa veya PITR yetmiyo
   ```sql
   select * from private.document_orphan_objects();
   ```
-  Otomatik silme yoktur. Silmeden önce dosyanın dış yedekte olduğunu ve hiçbir
+  Özeti sunucuda uyuşmadığı için iptal edilen yüklemelerin dosyaları da bu
+  listeye girer. Otomatik silme yoktur. Silmeden önce dosyanın dış yedekte olduğunu ve hiçbir
   `documents` satırının `storage_path` değerine eşit olmadığını kontrol edin;
   silme Supabase panelinden (Storage) yapılır. Etkin veya arşivlenmiş belgenin
   dosyası asla silinmez.

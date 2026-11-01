@@ -383,10 +383,18 @@ public final class DocumentDetailViewModel {
     isLoadingFile = true
     fileError = nil
     defer { isLoadingFile = false }
+    fileData = nil
+    integrity = .unknown
     do {
       let data = try await repositories.documents.downloadFile(path: document.storagePath)
+      guard data.count == document.byteSize, SHA256Digest.hex(data) == document.sha256 else {
+        // Kayıtla eşleşmeyen dosya gösterilmez ve açılmaz (bozuk veya farklı içerik).
+        integrity = .mismatch
+        fileError = "İndirilen dosya kayıtla eşleşmiyor (SHA-256 farklı); güvenilir olmadığı için gösterilmiyor. Tekrar deneyin; sürerse yöneticiye bildirin."
+        return
+      }
       fileData = data
-      integrity = SHA256Digest.hex(data) == document.sha256 && data.count == document.byteSize ? .verified : .mismatch
+      integrity = .verified
     } catch {
       fileError = message(for: error)
     }

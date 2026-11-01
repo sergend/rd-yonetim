@@ -55,7 +55,7 @@ struct DocumentDetailView: View {
       if !document.hasFile {
         Text(document.status == .iptal ? "İptal edilen yüklemenin dosyası yok." : "Dosya henüz yüklenmedi.")
           .foregroundStyle(RDColor.textSecondary)
-      } else if let data = model.fileData {
+      } else if let data = model.fileData, model.integrity == .verified {
         Button { fullScreen = true } label: {
           DocumentFilePreview(data: data, mimeType: document.mimeType)
             .frame(height: 340)
@@ -68,8 +68,10 @@ struct DocumentDetailView: View {
       } else if model.isLoadingFile {
         ProgressView("Dosya indiriliyor…").frame(maxWidth: .infinity, minHeight: 120)
       } else if let error = model.fileError {
+        // Kayıtla eşleşmeyen dosya önizlenmez ve tam ekran açılmaz.
         VStack(alignment: .leading, spacing: .rdS) {
-          Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(RDColor.tone(.danger))
+          Label(error, systemImage: model.integrity == .mismatch ? "exclamationmark.shield" : "exclamationmark.triangle")
+            .foregroundStyle(RDColor.tone(.danger))
           Button("Tekrar dene") { Task { await model.loadFile() } }
         }
       }
@@ -82,10 +84,7 @@ struct DocumentDetailView: View {
     case .verified:
       Label("Dosya doğrulandı (SHA-256 eşleşti)", systemImage: "checkmark.shield")
         .font(RDFont.secondary).foregroundStyle(RDColor.tone(.success))
-    case .mismatch:
-      Label("Dosya kayıtla eşleşmiyor; bozulmuş olabilir. Yöneticiye bildirin.", systemImage: "exclamationmark.shield")
-        .font(RDFont.secondary).foregroundStyle(RDColor.tone(.danger))
-    case .unknown:
+    case .mismatch, .unknown:
       EmptyView()
     }
   }
@@ -93,7 +92,7 @@ struct DocumentDetailView: View {
   private var fullScreenViewer: some View {
     NavigationStack {
       Group {
-        if let data = model.fileData {
+        if let data = model.fileData, model.integrity == .verified {
           DocumentFilePreview(data: data, mimeType: document.mimeType)
         }
       }

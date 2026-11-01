@@ -60,6 +60,8 @@ public actor InMemoryBackend {
   public internal(set) var uploadCallCount = 0
   /// Sonraki dosya yüklemesi sunucuya ulaşır ama yanıt kaybolur (test için).
   public var dropNextUploadResponse = false
+  /// Test: bir sonraki yüklemede dosya yolda bozulur (aynı boyut ve tür, farklı içerik).
+  public var corruptNextUpload = false
   public var today = CalendarDate.today()
   public internal(set) var saveCallCount = 0
   /// Sonraki çağrıda fırlatılacak hata (test için).
@@ -80,6 +82,7 @@ public actor InMemoryBackend {
 
   public func set(nextError: RepositoryError?) { self.nextError = nextError }
   public func set(dropNextUploadResponse: Bool) { self.dropNextUploadResponse = dropNextUploadResponse }
+  public func set(corruptNextUpload: Bool) { self.corruptNextUpload = corruptNextUpload }
   public func set(grants: [PermissionGrant]) { self.grants = grants }
   public func set(session: AuthSession?) { self.session = session }
   public func set(profile: UserProfile) { self.profile = profile }

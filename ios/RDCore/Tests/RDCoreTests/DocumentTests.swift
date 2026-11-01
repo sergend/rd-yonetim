@@ -494,10 +494,80 @@ final class DocumentViewModelTests: XCTestCase {
     XCTAssertTrue(model.canManage)
     XCTAssertTrue(model.canRelink)
 
-    // Depodaki içerik bozulursa kullanıcıya açıkça gösterilir.
+    XCTAssertNotNil(model.fileData)
+
+    // Depodaki içerik bozulursa dosya gösterilmez; açık hata ve yeniden deneme.
     await f.backend.corrupt(path: doc.storagePath)
     await model.loadFile()
     XCTAssertEqual(model.integrity, .mismatch)
+    XCTAssertNil(model.fileData, "kayıtla eşleşmeyen dosya önizlemeye verilmez")
+    XCTAssertTrue(model.fileError?.contains("SHA-256") == true)
+  }
+
+  func testDetailDoesNotKeepPreviouslyVerifiedFileWhenRedownloadFails() async throws {
+    let f = await DocFixture()
+    await f.asAdmin()
+    let doc = try await f.upload(SampleFiles.png(), kind: .irsaliye, title: "İrsaliye")
+    let access = AccessControl(grants: await f.backend.grants)
+    let model = DocumentDetailViewModel(document: doc, access: access, repositories: f.repositories, userId: f.admin.id)
+    await model.loadFile()
+    XCTAssertEqual(model.integrity, .verified)
+    await f.backend.set(nextError: .network)
+    await model.loadFile()
+    XCTAssertNil(model.fileData)
+    XCTAssertEqual(model.integrity, .unknown)
+    XCTAssertEqual(model.fileError, RepositoryError.network.errorDescription)
+    await model.loadFile()
+    XCTAssertEqual(model.integrity, .verified, "yeniden deneme doğrulanmış dosyayı gösterir")
+  }
+}
+
+final class DocumentServerDigestTests: XCTestCase {
+  /// Aynı boyut ve türde, farklı içerik sunucuya ulaşırsa belge "yüklendi" olmaz.
+  func testSameSizeAndTypeButDifferentBytesIsRejectedAndRetriedWithNewId() async throws {
+    let f = await DocFixture()
+    await f.asAdmin()
+    let data = SampleFiles.pdf("asıl")
+    let pending = try await f.uploader.stage(data: data, kind: .tutanak, title: "Tutanak", description: nil,
+                                             documentDate: f.today, link: .project(f.project.id), linkTitle: "Test")
+    await f.backend.set(corruptNextUpload: true)
+    do {
+      _ = try await f.uploader.run(pending)
+      XCTFail("bozuk içerik kabul edilmemeli")
+    } catch let error as RepositoryError {
+      XCTAssertEqual(error, .conflict("Sunucuya ulaşan dosya cihazdakiyle aynı değil; yeniden yükleyin"))
+    }
+    let rejected = await f.backend.archiveDocuments.first { $0.id == pending.id }
+    XCTAssertEqual(rejected?.status, .iptal)
+    let events = await f.backend.documentEvents.filter { $0.documentId == pending.id }.map(\.action)
+    XCTAssertEqual(events, ["rezerve", "ozet_uyusmadi"])
+    let stored = await f.store.all()
+    XCTAssertEqual(stored.first?.needsNewId, true, "yeniden deneme yeni kimlikle başlar")
+
+    // Yeniden deneme: aynı yerel dosya, yeni kimlik ve yeni yol; bu kez doğru içerik.
+    let renewed = try await f.uploader.renew(stored[0])
+    let doc = try await f.uploader.run(renewed)
+    XCTAssertEqual(doc.status, .yuklendi)
+    XCTAssertEqual(doc.sha256, SHA256Digest.hex(data))
+    let active = await f.backend.archiveDocuments.filter { $0.status == .yuklendi }
+    XCTAssertEqual(active.map(\.id), [renewed.id], "tek etkin belge")
+  }
+
+  @MainActor
+  func testUploadViewModelRetriesAfterServerDigestMismatch() async throws {
+    let f = await DocFixture()
+    await f.asAdmin()
+    let access = AccessControl(grants: await f.backend.grants)
+    let model = DocumentUploadViewModel(link: .project(f.project.id), linkTitle: "Test", projectId: f.project.id,
+                                        access: access, repositories: f.repositories, store: f.store, today: f.today)
+    model.setFile(SampleFiles.jpeg(), fileName: "fis.jpg")
+    await f.backend.set(corruptNextUpload: true)
+    await model.submit()
+    guard case .failed = model.state else { return XCTFail("\(model.state)") }
+    await model.retry()
+    guard case .done(let doc) = model.state else { return XCTFail("\(model.state)") }
+    XCTAssertEqual(doc.status, .yuklendi)
+    XCTAssertNotEqual(doc.storagePath, "", "yeni yol")
   }
 }
 

@@ -105,6 +105,12 @@ jobs:
           # Yalnızca rapor: yetim nesneler otomatik silinmez (runbook'a bakın).
           psql "$SUPABASE_DB_URL" -X -A -t -v ON_ERROR_STOP=1 \
             -c "select count(*) || ' yetim nesne (24 saatten eski, tamamlanmamış yükleme)' from private.document_orphan_objects()"
+          # Sunucuda özeti doğrulanmamış yüklenmiş belge olmamalı (manifest bunları içermez).
+          unverified="$(psql "$SUPABASE_DB_URL" -X -A -t -v ON_ERROR_STOP=1 -c "select private.unverified_document_count()")"
+          if [ "$unverified" != 0 ]; then
+            echo "::error::$unverified yüklenmiş belgenin SHA-256 özeti sunucuda doğrulanmamış" >&2
+            exit 1
+          fi
 
       - name: Belgeleri şifreli olarak eşitle ve her dosyayı doğrula
         run: |

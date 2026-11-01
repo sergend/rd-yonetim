@@ -85,8 +85,36 @@ struct SupabaseDocumentRepository: DocumentRepository {
     }
   }
 
+  /// Tamamlama `belge-dogrula` Edge Function'ı üzerinden: sunucu Storage'daki
+  /// gerçek baytların SHA-256 özetini hesaplar, beyan edilenle aynıysa belgeyi
+  /// "yüklendi" yapar. Özet uyuşmazsa belge iptal edilir ve 23505 (çakışma)
+  /// döner; yükleyici aynı dosyayı yeni kimlikle yeniden dener.
+  static let verifyFunction = "belge-dogrula"
+
   func completeUpload(id: UUID) async throws -> ArchiveDocument {
-    try await rpc("complete_document_upload", ["p_id": .string(id.uuidString)])
+    do {
+      try await client.functions.invoke(Self.verifyFunction,
+                                        options: FunctionInvokeOptions(method: .post, body: ["id": id.uuidString]))
+    } catch {
+      throw Self.map(function: error)
+    }
+    return try await document(id: id)
+  }
+
+  /// Fonksiyon hataları PostgREST biçimindedir ({ code, message }).
+  static func map(function error: Error) -> RepositoryError {
+    guard let error = error as? FunctionsError else { return ErrorMapper.map(error) }
+    switch error {
+    case .httpError(let status, let data):
+      if let body = try? JSONDecoder().decode(PostgrestError.self, from: data) {
+        return ErrorMapper.map(postgrest: body)
+      }
+      if status == 401 { return .notAuthenticated }
+      if status == 404 { return .server("Doğrulama servisine ulaşılamadı. Lütfen tekrar deneyin.") }
+      return .server("Dosya sunucuda doğrulanamadı. Lütfen tekrar deneyin.")
+    case .relayError:
+      return .network
+    }
   }
 
   func downloadFile(path: String) async throws -> Data {

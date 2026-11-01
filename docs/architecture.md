@@ -207,10 +207,13 @@ giderleri görür; başkasının giderini, geliri ve raporları göremez, onayla
   ayrılmış yoluna) ve select (belgeyi görebilen) içerir; update ve delete yok.
   Politikalar `private.install_storage_policies()` ile kurulur, `post_restore()` de çağırır.
 - Yazma yalnızca RPC'lerle: `reserve_document_upload`, `complete_document_upload`,
-  `archive_document`, `cancel_document`, `relink_document`. Bakım:
+  `archive_document`, `cancel_document`, `relink_document`. Tamamlama
+  `belge-dogrula` Edge Function'ı üzerinden: Storage'daki gerçek baytların
+  SHA-256'sı sunucuda hesaplanır (`record_document_server_hash`, yalnızca
+  `service_role`); beyanla aynı değilse belge yüklendi olmaz, iptal edilir. Bakım:
   `private.expire_document_uploads()`, `private.document_orphan_objects()`
   (yalnızca listeler), `private.document_storage_manifest()` (yedek doğrulaması).
-- iOS: `DocumentUploader` (cihazda sakla → yer ayır → gönder → doğrula; aynı
+- iOS: `DocumentUploader` (cihazda sakla → yer ayır → gönder → sunucuda doğrula; aynı
   kimlikle yeniden dene), `FilePendingUploadStore`, `DocumentFileValidator`
   (içerikten tür, boyut), `SHA256Digest`. Ekranlar `ios/RDYonetim/Belgeler/`.
 - Kararlar: [karar 0007](decisions/0007-asama-6-kararlari.md).

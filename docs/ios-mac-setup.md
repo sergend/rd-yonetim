@@ -151,12 +151,15 @@ bağlantılı, 100.000 ödenmiş, vadesi geçmiş), `GD-000002` akaryakıt 4.250
 ### Aşama 6: evrak ve belge arşivi
 
 Seed verisinde belge yoktur; adımlar boş arşivle başlar. `supabase start`
-Storage'ı da başlatmalıdır (varsayılan; `-x storage-api` kullanmayın). Belge
+Storage'ı ve Edge Function çalışma ortamını da başlatmalıdır (varsayılan;
+`-x storage-api` veya `-x edge-runtime` kullanmayın): yükleme `belge-dogrula`
+fonksiyonu dosyanın SHA-256 özetini sunucuda doğrulamadan tamamlanmaz. Belge
 tarayıcı (VisionKit) **Simülatörde çalışmaz**: orada "Tara" düğmesi görünmez,
 fotoğraf ve dosya seçimiyle devam edilir. Tarama adımları gerçek iPhone ister.
 
 - [ ] `sef@example.test` → Projeler → Sivas → "Proje belgeleri" → + → "Fotoğraf seç": fotoğraf önizlemede görünüyor (yakınlaştırılabiliyor), tür varsayılan "İrsaliye"; tür listesinde Fatura, Fiş ve Sözleşme **yok**. Ad girip "Yükle": adımlar (Sunucuya bildiriliyor → Dosya gönderiliyor → Doğrulanıyor) ve belge listede.
 - [ ] Belgeye dokun: dosya açılıyor, "Dosya doğrulandı (SHA-256 eşleşti)" yazıyor, Geçmiş'te "Yükleme başlatıldı" ve "Dosya yüklendi ve doğrulandı".
+- [ ] Not: aynı boyut ve türde farklı içerik (sunucu özeti uyuşmaz) ve indirilen dosyanın bozuk olması elle kolay üretilemez; bu senaryolar otomatik testlerdedir (pgTAP `111_evrak_sunucu_ozet`, Swift `DocumentServerDigestTests` ve gerçek Storage'a karşı entegrasyon testi). Eşleşmeyen dosya ayrıntı ekranında gösterilmez; hata ve "Tekrar dene" çıkar.
 - [ ] Gerçek iPhone: + → "Tara" → üç sayfa tara → Kaydet: tek PDF olarak önizlemede üç sayfa; yüklenince ayrıntıda sayfalar kaydırılıyor ve yakınlaştırılıyor.
 - [ ] + → "Dosya seç (PDF)": Dosyalar'dan PDF seçiliyor. Uzantısı `.pdf` olan ama içi PDF olmayan dosya "Bu dosya türü desteklenmiyor" hatası veriyor; 25 MB'tan büyük dosya boyut hatası veriyor.
 - [ ] Aynı fotoğrafı aynı projeye ikinci kez yüklemek "Bu dosya bu kayda zaten eklenmiş" hatası veriyor.
