@@ -81,7 +81,7 @@ struct MaterialDetailView: View {
   @State private var editing = false
   private let app: AppModel
 
-  init(material: Material, app: AppModel) {
+  init(material: RDCore.Material, app: AppModel) {
     self.app = app
     _model = State(initialValue: MaterialDetailViewModel(material: material, access: app.access,
                                                          repositories: app.repositories))
@@ -168,9 +168,9 @@ struct MaterialDetailView: View {
 struct MaterialFormView: View {
   @State private var model: MaterialFormViewModel
   @Environment(\.dismiss) private var dismiss
-  private let onSave: (Material) -> Void
+  private let onSave: (RDCore.Material) -> Void
 
-  init(material: Material?, app: AppModel, onSave: @escaping (Material) -> Void) {
+  init(material: RDCore.Material?, app: AppModel, onSave: @escaping (RDCore.Material) -> Void) {
     _model = State(initialValue: MaterialFormViewModel(material: material, access: app.access,
                                                        repositories: app.repositories))
     self.onSave = onSave

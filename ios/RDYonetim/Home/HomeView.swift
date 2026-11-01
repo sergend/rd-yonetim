@@ -32,7 +32,7 @@ enum AppRoute: Hashable {
   case documents(link: DocumentLink?, title: String?, projectId: UUID?)
   case archiveDocument(ArchiveDocument)
   case materials
-  case material(Material)
+  case material(RDCore.Material)
   case stock(projectId: UUID?)
   case stockMovements(warehouseId: UUID?, materialId: UUID?)
   case stockMovement(StockMovement)
