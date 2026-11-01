@@ -38,7 +38,8 @@ public enum SupabaseEnvironment {
       puantaj: SupabasePuantajRepository(client: client),
       contracts: SupabaseContractRepository(client: client),
       finance: SupabaseFinanceRepository(client: client),
-      documents: SupabaseDocumentRepository(client: client)
+      documents: SupabaseDocumentRepository(client: client),
+      inventory: SupabaseInventoryRepository(client: client)
     )
   }
 

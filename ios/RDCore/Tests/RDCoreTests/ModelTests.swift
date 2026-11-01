@@ -144,6 +144,7 @@ final class AccessTests: XCTestCase {
   func testOnlyDevelopedModulesAreAvailable() {
     XCTAssertEqual(Set(AppModule.allCases.filter(\.isAvailable)),
                    [.projeler, .isTakibi, .taseronlar, .personel, .ekipler, .puantaj, .cari, .genelGider,
-                    .imalat, .taseronSozlesmeleri, .hakedis, .giderler, .borclar, .gelirler, .raporlar, .belgeler])
+                    .imalat, .taseronSozlesmeleri, .hakedis, .giderler, .borclar, .gelirler, .raporlar, .belgeler,
+                    .malzemeler, .stoklar, .satinAlma])
   }
 }
