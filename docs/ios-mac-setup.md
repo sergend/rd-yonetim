@@ -115,7 +115,7 @@ işlenmiş (brüt 312.000, teminat 31.200, avans mahsubu 50.000, ödemeye uygun
 - [ ] Sözleşme → "Revizyon aç" → fiyatı değiştirip onaylayın: eski hakedişlerin tutarı değişmez.
 - [ ] Yeni sözleşme formu: yalnızca cari kartı bağlı taşeronlar listelenir; birim fiyat / günlük / götürü kalemler aynı sözleşmeye eklenebilir; %5/10/15/20 veya başka teminat oranı.
 - [ ] `sef@example.test` → Ana ekran: "Taşeron sözleşmeleri" ve "Hakediş" modülleri **görünmez**; "İmalat (metraj)" görünür. Sivas → kalemler fiyatsız; miktar girilir, "Tümünü onayla" görünmez.
-- [ ] Ana ekranda hiçbir para tutarı, kasa veya banka bakiyesi yok.
+- [ ] Ana ekranda kasa, banka veya cari bakiyesi yok; tutarlar yalnızca ayın onaylı gideri, bekleyen ödemeler, açık hakedişler ve proje maliyetidir (izne bağlı).
 - [ ] Hakediş detayı koyu temada ve en büyük metin boyutunda okunaklı; VoiceOver tutar satırlarını "eklenir/düşülür" ile okur.
 - [ ] USD sözleşme açın (para birimi USD): "Cari deftere işle" kur sorar; kur boşken kaydedilemez. Ödeme ve teminat iadesi sayfalarında "Kur (1 USD = ? ₺)" alanı görünür, boşken Kaydet kapalıdır; TL sözleşmede bu alan görünmez.
 - [ ] Aynı ödemeyi çift dokunuşla iki kez gönderin: tek ödeme oluşur.
@@ -145,7 +145,7 @@ bağlantılı, 100.000 ödenmiş, vadesi geçmiş), `GD-000002` akaryakıt 4.250
 - [ ] Raporlar → Proje maliyeti → Sivas: gider, hakediş ve gelir ayrı bölümler; "Verilen avans" ayrı satır ve "ödeme değildir" açıklaması; hakediş tutarları gider satırlarına eklenmemiş.
 - [ ] Giderler → filtre menüsü → "Kategorileri yönet": yeni kategori ekleme, pasif yapma; pasif kategori yeni gider formunda çıkmıyor.
 - [ ] `sef@example.test` → Ana ekran: yalnızca "Giderler" görünür ("Bekleyen borçlar", "Gelir ve tahsilat", "Raporlar" görünmez). Listede muhasebenin girdiği giderler yok; "Peşin ödendi" + Kürşat kartı ile gider girebiliyor; kendi giderinde "Onayla" ve "Ödeme kaydet" yok.
-- [ ] Ana ekranda hiçbir para tutarı, kasa veya banka bakiyesi yok.
+- [ ] Ana ekranda kasa, banka veya cari bakiyesi yok; tutarlar yalnızca ayın onaylı gideri, bekleyen ödemeler, açık hakedişler ve proje maliyetidir (izne bağlı).
 - [ ] Gider listesi ve detayı koyu temada ve en büyük metin boyutunda okunaklı; VoiceOver durum rozetini ve kalan tutarı okuyor.
 
 ### Aşama 6: evrak ve belge arşivi
@@ -199,3 +199,14 @@ başlangıç için `npx supabase db reset`.
   görüntüleme ve yakınlaştırma hiçbir cihazda denenmedi; yalnızca derleme
   (CI) ve RDCore testleri (doğrulama, özet, yükleme/yeniden deneme) çalıştı.
 - Uygulama ikonu ve logo boştur; orijinal dosyalar bekleniyor (docs/brand-assets.md).
+
+### Aşama 8: onaylanan arayüz (sekme çubuğu, ana sayfa özeti, proje sekmeleri, ay sonu raporu)
+
+- [ ] Giriş ekranında sloganlı RD Projeler logosu; koyu temada logo beyaz zemin üzerinde ve D harfi görünür.
+- [ ] Uygulama ikonu RD harfleri (beyaz zemin).
+- [ ] Alt sekme çubuğu: Ana Sayfa, Projeler, ortada kırmızı +, Cari, Raporlar. İzni olmayan sekme görünmez; seçili sekmeye tekrar dokunmak başa döner.
+- [ ] + → Hızlı ekle: Gider formu doğrudan açılır; Ödeme, Puantaj, Hakediş, Cari hareket ve Fiş / belge ilgili ekrana gider. İzni olmayan seçenek görünmez.
+- [ ] `muhasebe@example.test` → Ana sayfa: üstte küçük logo; kırmızı "Bu ayın maliyeti" kartı (‹ › ile ay değişir, gelecek aya geçilmez), kategori dağılımı; "Bekleyen ödemeler" ve "Açık hakedişler" kutuları ilgili listeye gider; yaklaşan ödemelerde gecikenler kırmızı ve başta.
+- [ ] `sef@example.test` → Ana sayfa: tutar kartları görünmez (gider ve hakediş izni yok).
+- [ ] Proje detayı: üstte proje adı ve kaydırılan sekmeler (Özet, Giderler, Taşeronlar, Puantaj, Hakediş, Cari); yalnızca izinli sekmeler görünür. Özet'te "Maliyet" bölümü gider ve hakedişi ayrı gösterir.
+- [ ] Hakediş detayı → "Ay sonu raporu": logolu başlık, taşeron özeti ve ödemeye uygun tutar, her personelin takvimi (1 / ½ / 0 / –, renk tek başına anlam taşımaz), toplamlar. Sağ üstten PDF paylaşılır; PDF açık temada ve logolu.

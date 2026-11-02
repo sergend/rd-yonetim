@@ -140,6 +140,8 @@ public final class ProjectFormViewModel {
 public final class ProjectDetailViewModel {
   public private(set) var project: Project
   public private(set) var tasks: [TaskItem] = []
+  /// Proje maliyet özeti (gider ve hakediş ayrı; izin yoksa nil).
+  public private(set) var costs: ProjectCostRow?
   public private(set) var errorMessage: String?
 
   private let access: AccessControl
@@ -154,6 +156,7 @@ public final class ProjectDetailViewModel {
   public var canEdit: Bool { access.can(.projeWrite, in: project.id) }
   public var canSeeCari: Bool { access.can(.cariHareketRead, in: project.id) }
   public var canSeeTasks: Bool { access.can(.isRead, in: project.id) }
+  public var canSeeCosts: Bool { access.can(.giderRead, in: project.id) || access.can(.hakedisRead, in: project.id) }
 
   public func load() async {
     errorMessage = nil
@@ -161,6 +164,10 @@ public final class ProjectDetailViewModel {
       project = try await repositories.projects.get(id: project.id)
       if canSeeTasks {
         tasks = try await repositories.tasks.list(projectId: project.id, openOnly: true)
+      }
+      if canSeeCosts {
+        costs = (try? await repositories.finance.projectCosts(projectId: project.id))?
+          .first { $0.projectId == project.id }
       }
     } catch {
       errorMessage = message(for: error)

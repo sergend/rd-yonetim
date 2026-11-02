@@ -37,17 +37,16 @@ public struct ThemedColor: Hashable, Sendable {
 
 /// RD Projeler renk token'ları.
 ///
-/// Marka kırmızısı GEÇİCİDİR: kesin değer orijinal RD logosundan alınacak ve
-/// yalnızca `brandRedLight` / `brandRedDark` değiştirilecek. Değiştirince
+/// Marka kırmızısı orijinal RD logosundan alınmıştır (#CB010E). Değiştirince
 /// `swift test` kontrast testlerini çalıştırır; geçmeyen değer kullanılamaz.
 /// Kırmızı yalnızca marka vurgusu ve birincil etkileşimlerde kullanılır;
 /// gövde metni ve yüzeyler nötrdür.
 public enum Palette {
   /// Birincil buton dolgusu ve marka vurgusu (beyaz metinle kullanılır).
-  public static let brand = ThemedColor(light: RGB(0xC8102E), dark: RGB(0xC8102E))
+  public static let brand = ThemedColor(light: RGB(0xCB010E), dark: RGB(0xCB010E))
   /// Kırmızının metin/ikon olarak kullanıldığı yerler (bağlantı, seçili durum).
   /// Koyu temada okunurluk için daha açık ton.
-  public static let brandText = ThemedColor(light: RGB(0xC8102E), dark: RGB(0xF0565C))
+  public static let brandText = ThemedColor(light: RGB(0xCB010E), dark: RGB(0xF0565C))
   /// Marka dolgusu üzerindeki metin.
   public static let onBrand = ThemedColor(light: RGB(0xFFFFFF), dark: RGB(0xFFFFFF))
 

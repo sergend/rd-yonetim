@@ -8,9 +8,9 @@ struct HakedisListView: View {
   @State private var model: HakedisListViewModel
   private let app: AppModel
 
-  init(app: AppModel) {
+  init(projectId: UUID? = nil, app: AppModel) {
     self.app = app
-    _model = State(initialValue: HakedisListViewModel(repository: app.repositories.contracts))
+    _model = State(initialValue: HakedisListViewModel(projectId: projectId, repository: app.repositories.contracts))
   }
 
   var body: some View {
@@ -45,7 +45,7 @@ struct HakedisListView: View {
     .navigationTitle("Hakediş")
     .toolbar {
       ToolbarItem(placement: .primaryAction) {
-        NavigationLink(value: AppRoute.contracts(projectId: nil)) { Label("Sözleşmeler", systemImage: "doc.text") }
+        NavigationLink(value: AppRoute.contracts(projectId: model.projectId)) { Label("Sözleşmeler", systemImage: "doc.text") }
       }
     }
     .rdContentState(isLoading: model.isLoading, isEmpty: model.filtered.isEmpty, error: model.errorMessage,
@@ -149,6 +149,11 @@ struct HakedisDetailView: View {
         RDInfoRow(label: "İptal gerekçesi", value: reason)
       }
       if let note = model.hakedis.note { RDInfoRow(label: "Not", value: note) }
+      NavigationLink(value: AppRoute.hakedisReport(model.hakedis, model.contract)) {
+        Label("Ay sonu raporu", systemImage: "calendar")
+          .font(RDFont.rowTitle)
+          .foregroundStyle(RDColor.brandText)
+      }
     }
     .rdRowBackground()
   }

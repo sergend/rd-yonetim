@@ -2,139 +2,87 @@ import RDCore
 import RDDesign
 import SwiftUI
 
-enum AppRoute: Hashable {
-  case projects
-  case project(Project)
-  case cariList(projectId: UUID?)
-  case cari(CariAccount)
-  case generalExpenses
-  case tasks(projectId: UUID?)
-  case subcontractors
-  case subcontractor(Subcontractor)
-  case personnelList
-  case personnel(Personnel)
-  case crews
-  case crew(Crew)
-  case projectWorkforce(Project)
-  case puantajProjects
-  case puantaj(Project)
-  case contracts(projectId: UUID?)
-  case contract(Contract)
-  case hakedisList
-  case hakedis(Hakedis, Contract)
-  case imalatProjects
-  case imalat(Project)
-  case financeList(FinanceDocKind, projectId: UUID?)
-  case financeDocument(FinanceDocument)
-  case payables(FinanceDocKind)
-  case financeReports
-  case financeCategories
-  case documents(link: DocumentLink?, title: String?, projectId: UUID?)
-  case archiveDocument(ArchiveDocument)
-  case materials
-  case material(RDCore.Material)
-  case stock(projectId: UUID?)
-  case stockMovements(warehouseId: UUID?, materialId: UUID?)
-  case stockMovement(StockMovement)
-  case purchaseOrders(projectId: UUID?)
-  case purchaseOrder(PurchaseOrder)
-  case placeholder(AppModule)
-}
-
-/// Ana sayfa: özet sayılar, aktif projeler, bana atanan işler ve modüller.
-/// Bilerek hiçbir para tutarı, kasa veya banka bakiyesi göstermez.
+/// Ana sayfa: bu ayın maliyeti, bekleyen ödemeler, açık hakedişler, yaklaşan
+/// ödemeler, aktif projeler (maliyetleriyle), bana atanan işler ve modüller.
+/// Kasa veya banka bakiyesi göstermez.
 struct HomeView: View {
   @Environment(AppModel.self) private var app
   @State private var model: HomeViewModel
-  @State private var path = NavigationPath()
+  @State private var dashboard: HomeDashboardViewModel
+  @Binding private var path: NavigationPath
 
   private let projectLimit = 5
   private let taskLimit = 3
 
-  init(context: SessionContext, repositories: Repositories) {
+  init(context: SessionContext, repositories: Repositories, path: Binding<NavigationPath>) {
     _model = State(initialValue: HomeViewModel(context: context, repositories: repositories))
+    _dashboard = State(initialValue: HomeDashboardViewModel(access: context.access, repositories: repositories))
+    _path = path
   }
 
   var body: some View {
-    NavigationStack(path: $path) {
-      List {
-        Section {
-          summary
-        } header: {
-          greeting
-        }
-        .rdRowBackground()
-
-        if let error = model.errorMessage {
-          Section { RDErrorBanner(message: error) }
-            .listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets())
-        }
-
-        if model.context.access.canAnywhere(.projeRead) { projectsSection }
-        tasksSection
-        modulesSection
-        upcomingSection
+    List {
+      Section {
+        summary
+      } header: {
+        greeting
       }
-      .listStyle(.insetGrouped)
-      .rdScreen()
-      .navigationTitle(RDBrandMark.appName)
-      .toolbar {
-        ToolbarItem(placement: .topBarTrailing) { accountMenu }
+      .rdRowBackground()
+
+      if let error = model.errorMessage {
+        Section { RDErrorBanner(message: error) }
+          .listRowBackground(Color.clear)
+          .listRowInsets(EdgeInsets())
       }
-      .refreshable { await reload() }
-      .task { await reload() }
-      .navigationDestination(for: AppRoute.self) { destination(for: $0) }
+
+      if dashboard.canSeeExpenses {
+        Section { MonthlyCostCard(model: dashboard) }
+          .listRowBackground(RDColor.brand)
+      }
+
+      if dashboard.pending != nil || dashboard.openHakedisCount != nil {
+        Section { DashboardTiles(model: dashboard) { path.append($0) } }
+          .listRowBackground(Color.clear)
+          .listRowInsets(EdgeInsets())
+      }
+
+      if !dashboard.upcoming.isEmpty { upcomingPaymentsSection }
+      if model.context.access.canAnywhere(.projeRead) { projectsSection }
+      tasksSection
+      modulesSection
+      upcomingSection
     }
+    .listStyle(.insetGrouped)
+    .listSectionSpacing(.compact)
+    .rdScreen()
+    .navigationTitle("Genel Bakış")
+    .toolbar {
+      ToolbarItem(placement: .topBarLeading) {
+        RDLogoImage(kind: .wordmark, height: 22)
+      }
+      ToolbarItem(placement: .topBarTrailing) { accountMenu }
+    }
+    .refreshable { await reload() }
+    .task { await reload() }
   }
 
   private func reload() async {
     await model.load()
+    await dashboard.load()
     await app.reloadLookups()
   }
 
-  @ViewBuilder
-  private func destination(for route: AppRoute) -> some View {
-    switch route {
-    case .projects: ProjectListView(app: app)
-    case .project(let project): ProjectDetailView(project: project, app: app)
-    case .cariList(let projectId): CariListView(projectId: projectId, app: app)
-    case .cari(let account): CariDetailView(account: account, app: app)
-    case .generalExpenses: GeneralExpensesView(app: app)
-    case .tasks(let projectId): TaskListView(projectId: projectId, app: app)
-    case .subcontractors: SubcontractorListView(app: app)
-    case .subcontractor(let item): SubcontractorDetailView(subcontractor: item, app: app)
-    case .personnelList: PersonnelListView(app: app)
-    case .personnel(let person): PersonnelDetailView(person: person, app: app)
-    case .crews: CrewListView(app: app)
-    case .crew(let crew): CrewDetailView(crew: crew, app: app)
-    case .projectWorkforce(let project): ProjectWorkforceView(project: project, app: app)
-    case .puantajProjects: PuantajProjectsView(app: app)
-    case .puantaj(let project): PuantajView(project: project, app: app)
-    case .contracts(let projectId): ContractListView(projectId: projectId, app: app)
-    case .contract(let contract): ContractDetailView(contract: contract, app: app)
-    case .hakedisList: HakedisListView(app: app)
-    case .hakedis(let hakedis, let contract): HakedisDetailView(hakedis: hakedis, contract: contract, app: app)
-    case .imalatProjects: ImalatProjectsView(app: app)
-    case .imalat(let project): ImalatView(project: project, app: app)
-    case .financeList(let kind, let projectId): FinanceDocumentListView(kind: kind, projectId: projectId, app: app)
-    case .financeDocument(let document): FinanceDocumentDetailView(document: document, app: app)
-    case .payables(let kind): PayablesView(kind: kind, app: app)
-    case .financeReports: FinanceReportView(app: app)
-    case .financeCategories: FinanceCategoryListView(app: app)
-    case .documents(let link, let title, let projectId):
-      DocumentListView(link: link, linkTitle: title, projectId: projectId, app: app)
-    case .archiveDocument(let document): DocumentDetailView(document: document, app: app)
-    case .materials: MaterialCatalogView(app: app)
-    case .material(let material): MaterialDetailView(material: material, app: app)
-    case .stock(let projectId): StockOverviewView(projectId: projectId, app: app)
-    case .stockMovements(let warehouseId, let materialId):
-      StockMovementListView(warehouseId: warehouseId, materialId: materialId, app: app)
-    case .stockMovement(let movement): StockMovementDetailView(movement: movement, app: app)
-    case .purchaseOrders(let projectId): PurchaseOrderListView(projectId: projectId, app: app)
-    case .purchaseOrder(let order): PurchaseOrderDetailView(order: order, app: app)
-    case .placeholder(let module): ModulePlaceholderView(module: module)
+  private var upcomingPaymentsSection: some View {
+    Section {
+      ForEach(dashboard.upcoming) { item in
+        NavigationLink(value: AppRoute.payables(.gider)) {
+          UpcomingPaymentRow(item: item, projectName: app.projectName(item.projectId))
+        }
+      }
+    } header: {
+      RDSectionHeader(title: "Yaklaşan ödemeler", actionTitle: "Tümü") { path.append(AppRoute.payables(.gider)) }
     }
+    .rdRowBackground()
   }
 
   // MARK: Bölümler
@@ -153,7 +101,7 @@ struct HomeView: View {
     .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
   }
 
-  /// Yalnızca adet bilgisi; tutar yok.
+  /// Adet bilgileri (tutarlar aşağıdaki kartlardadır).
   private var summary: some View {
     ViewThatFits(in: .horizontal) {
       HStack(spacing: .rdL) { metrics }
@@ -179,7 +127,8 @@ struct HomeView: View {
       }
       ForEach(model.activeProjects.prefix(projectLimit)) { project in
         NavigationLink(value: AppRoute.project(project)) {
-          ProjectRow(project: project, openTaskCount: model.openTaskCount(projectId: project.id))
+          HomeProjectRow(project: project, costs: dashboard.projectCosts[project.id],
+                         openTaskCount: model.openTaskCount(projectId: project.id))
         }
       }
     } header: {
@@ -207,7 +156,7 @@ struct HomeView: View {
   private var modulesSection: some View {
     Section {
       ForEach(model.availableModules) { module in
-        NavigationLink(value: route(for: module)) {
+        NavigationLink(value: AppRoute.module(module)) {
           RDRow(symbol: module.symbol, symbolTint: RDColor.brandText, title: module.title)
         }
       }
@@ -251,31 +200,6 @@ struct HomeView: View {
     }
     .accessibilityLabel("Hesap: \(model.context.profile.displayName)")
   }
-
-  private func route(for module: AppModule) -> AppRoute {
-    switch module {
-    case .projeler: .projects
-    case .isTakibi: .tasks(projectId: nil)
-    case .taseronlar: .subcontractors
-    case .personel: .personnelList
-    case .ekipler: .crews
-    case .cari: .cariList(projectId: nil)
-    case .genelGider: .generalExpenses
-    case .puantaj: .puantajProjects
-    case .imalat: .imalatProjects
-    case .taseronSozlesmeleri: .contracts(projectId: nil)
-    case .hakedis: .hakedisList
-    case .giderler: .financeList(.gider, projectId: nil)
-    case .borclar: .payables(.gider)
-    case .gelirler: .financeList(.gelir, projectId: nil)
-    case .raporlar: .financeReports
-    case .belgeler: .documents(link: nil, title: nil, projectId: nil)
-    case .malzemeler: .materials
-    case .stoklar: .stock(projectId: nil)
-    case .satinAlma: .purchaseOrders(projectId: nil)
-    default: .placeholder(module)
-    }
-  }
 }
 
 private struct Metric: View {
@@ -298,7 +222,7 @@ private struct Metric: View {
   }
 }
 
-/// Proje satırı (ana sayfa ve proje listesi). Tutar içermez.
+/// Proje satırı (proje listesi). Tutar içermez.
 struct ProjectRow: View {
   let project: Project
   var openTaskCount: Int?

@@ -723,9 +723,12 @@ public final class HakedisListViewModel {
   public private(set) var isLoading = false
   public private(set) var errorMessage: String?
 
+  /// Doluysa yalnızca bu projenin hakedişleri.
+  public let projectId: UUID?
   private let repository: ContractRepository
 
-  public init(repository: ContractRepository) {
+  public init(projectId: UUID? = nil, repository: ContractRepository) {
+    self.projectId = projectId
     self.repository = repository
   }
 
@@ -738,8 +741,8 @@ public final class HakedisListViewModel {
     errorMessage = nil
     defer { isLoading = false }
     do {
-      items = try await repository.hakedisList(contractId: nil)
-      contracts = Dictionary(uniqueKeysWithValues: try await repository.contracts(projectId: nil).map { ($0.id, $0) })
+      items = try await repository.hakedisList(contractId: nil).filter { projectId == nil || $0.projectId == projectId }
+      contracts = Dictionary(uniqueKeysWithValues: try await repository.contracts(projectId: projectId).map { ($0.id, $0) })
     } catch {
       errorMessage = message(for: error)
     }
@@ -842,6 +845,55 @@ public final class ImalatViewModel {
     } catch {
       errorMessage = message(for: error)
       return false
+    }
+  }
+}
+
+// MARK: - Ay sonu hakediş raporu
+
+/// Ay sonu raporu: taşeron özeti, personel takvimleri ve toplamlar. Yalnızca okur.
+@MainActor
+@Observable
+public final class HakedisReportViewModel {
+  public private(set) var report: HakedisMonthReport
+  public private(set) var subcontractorName: String?
+  public private(set) var paid: Decimal = 0
+  public private(set) var isLoading = false
+  public private(set) var errorMessage: String?
+
+  public let contract: Contract
+  private let repositories: Repositories
+
+  public init(hakedis: Hakedis, contract: Contract, repositories: Repositories) {
+    self.contract = contract
+    self.repositories = repositories
+    self.report = HakedisMonthReport(hakedis: hakedis, links: [], items: [])
+  }
+
+  public var hakedis: Hakedis { report.hakedis }
+  public var breakdown: HakedisBreakdown { HakedisBreakdown(report.hakedis, paid: paid) }
+
+  public func load() async {
+    isLoading = true
+    errorMessage = nil
+    defer { isLoading = false }
+    let contracts = repositories.contracts
+    do {
+      let hakedis = try await contracts.hakedis(id: report.hakedis.id)
+      let links = try await contracts.puantajLinks(hakedisId: hakedis.id)
+      let items = try await contracts.items(versionId: hakedis.versionId)
+      let adjustments = try await contracts.adjustments(hakedisId: hakedis.id)
+      report = HakedisMonthReport(hakedis: hakedis, links: links, items: items, adjustments: adjustments)
+      paid = ((try? await contracts.payments(contractId: hakedis.contractId)) ?? [])
+        .filter { $0.hakedisId == hakedis.id && $0.status == .aktif }
+        .reduce(Decimal(0)) { $0 + $1.amount }
+      // Taşeron kartı ayrı izinlidir; okunamazsa sözleşme adı gösterilir.
+      if subcontractorName == nil {
+        subcontractorName = (try? await repositories.workforce.subcontractors())?
+          .first { $0.id == hakedis.subcontractorId }?.name
+      }
+    } catch {
+      errorMessage = message(for: error)
     }
   }
 }

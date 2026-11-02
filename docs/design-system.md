@@ -20,20 +20,20 @@ Kural: ekranlar sabit renk, punto veya boşluk yazmaz; `RDColor`, `RDFont`,
 
 | Token | Açık | Koyu | Kullanım |
 | --- | --- | --- | --- |
-| `brand` | #C8102E | #C8102E | Birincil buton dolgusu (beyaz metinle) |
-| `brandText` | #C8102E | #F0565C | Kırmızı metin/ikon: bağlantı, seçili durum, modül ikonları; uygulama `tint`'i ve `AccentColor` |
+| `brand` | #CB010E | #CB010E | Birincil buton dolgusu (beyaz metinle) |
+| `brandText` | #CB010E | #F0565C | Kırmızı metin/ikon: bağlantı, seçili durum, modül ikonları; uygulama `tint`'i ve `AccentColor` |
 | `background` | #F2F2F7 | #000000 | Sayfa zemini |
 | `surface` | #FFFFFF | #1C1C1E | Liste bölümü yüzeyi |
 | `textPrimary` | #111114 | #F5F5F7 | Ana metin (AAA kontrast) |
 | `textSecondary` | #5C5C66 | #A1A1AA | İkincil metin |
 | `success / warning / danger / info / neutral` | | | Durum etiketleri ve bakiye yönü |
 
-- **Marka kırmızısı geçicidir.** Kesin değer orijinal logodan alınınca yalnızca
-  `Palette.brand` ve `Palette.brandText` değiştirilir; `AccentColor` görsel seti
-  de aynı değere getirilir (test eşleşmeyi denetler).
+- **Marka kırmızısı orijinal RD logosundan alındı (#CB010E).** Değiştirilirse
+  yalnızca `Palette.brand` ve `Palette.brandText` değişir; `AccentColor` görsel
+  seti de aynı değere getirilir (test eşleşmeyi denetler).
 - Kırmızı yalnızca marka vurgusu ve birincil etkileşimdedir: ekran başına bir
   birincil buton, bağlantılar, modül ikonları. Gövde metni ve yüzeyler nötrdür.
-  Koyu temada kırmızı metin daha açık tondadır (#F0565C), çünkü #C8102E koyu
+  Koyu temada kırmızı metin daha açık tondadır (#F0565C), çünkü #CB010E koyu
   zeminde okunmaz.
 - Hata rengi (`danger`, #B42318) marka kırmızısından ayrıdır; hata ile marka karışmaz.
 - `swift test` (RDDesignTests) her renk çifti için WCAG 2.1 AA kontrastını
@@ -189,3 +189,21 @@ Yeni tasarım bileşeni eklenmedi; ekranlar `RDYonetim/Finans/` altında mevcut
 - Ana sayfada kasa, banka, başlangıç parası veya toplam mevcut para kartı **yoktur**.
 - Logo bu aşamada değişmedi.
 
+
+## Aşama 8 ekranları (onaylanan arayüz)
+
+Tasarım önce tıklanabilir taslak olarak onaylandı. Önceki aşamalardaki
+"gölge yok, kart yok" kuralının iki bilinçli istisnası vardır: ana sayfadaki
+kırmızı maliyet kartı ve ortadaki + düğmesinin gölgesi.
+
+- **Sekme çubuğu (`RDTabBar`, `App/MainTabView.swift`):** Ana Sayfa, Projeler,
+  ortada marka kırmızısı +, Cari, Raporlar. Seçili sekme kırmızı ve dolu ikon.
+- **Hızlı ekle (`Home/QuickAddSheet.swift`):** 3 sütunlu seçenekler; her
+  seçeneğin tonu `StatusTone`'dan gelir.
+- **Ana sayfa (`Home/HomeDashboardSections.swift`):** üstte `RDLogoImage`
+  (yatay), "Genel Bakış" başlığı, kırmızı `MonthlyCostCard`, iki özet kutusu
+  (`DashboardTiles`), yaklaşan ödemeler, maliyetli proje satırları. Tutarlar
+  kuruşsuz (`rdWholeMoney`); kasa veya banka bakiyesi yok.
+- **Proje detayı:** üstte proje adı ve yatay kaydırılan sekmeler (`ProjectTabBar`).
+- **Ay sonu raporu (`Hakedis/HakedisReportView.swift`):** logolu başlık,
+  taşeron özeti, renk + işaretli takvim (1, ½, 0, –), toplamlar ve PDF.
