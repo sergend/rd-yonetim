@@ -150,20 +150,20 @@ public final class HomeDashboardViewModel {
   // MARK: Hesaplar (test edilebilir)
 
   /// Tutarı olan kategoriler, büyükten küçüğe.
-  public static func categories(from rows: [FinanceReportRow]) -> [CategoryCost] {
+  nonisolated public static func categories(from rows: [FinanceReportRow]) -> [CategoryCost] {
     rows.filter { $0.accruedTry != 0 }
       .sorted { $0.accruedTry > $1.accruedTry }
       .map { CategoryCost(id: $0.groupKey, label: $0.label, amount: $0.accruedTry) }
   }
 
-  public static func pendingSummary(_ statuses: [FinanceDocumentStatus]) -> PendingSummary {
+  nonisolated public static func pendingSummary(_ statuses: [FinanceDocumentStatus]) -> PendingSummary {
     let open = statuses.filter { $0.settlementState.isOpen && $0.remainingTry > 0 }
     return PendingSummary(total: open.reduce(Decimal(0)) { $0 + $1.remainingTry }, count: open.count,
                           overdueCount: open.filter(\.isOverdue).count)
   }
 
   /// Önce gecikenler (en çok geciken başta), sonra vadesi en yakın olanlar.
-  public static func upcomingStatuses(_ statuses: [FinanceDocumentStatus], limit: Int) -> [FinanceDocumentStatus] {
+  nonisolated public static func upcomingStatuses(_ statuses: [FinanceDocumentStatus], limit: Int) -> [FinanceDocumentStatus] {
     Array(statuses.filter { $0.settlementState.isOpen && $0.remainingTry > 0 }
       .sorted { lhs, rhs in
         if lhs.isOverdue != rhs.isOverdue { return lhs.isOverdue }
@@ -173,7 +173,7 @@ public final class HomeDashboardViewModel {
       .prefix(limit))
   }
 
-  public static func changePercent(current: Decimal?, previous: Decimal?) -> Int? {
+  nonisolated public static func changePercent(current: Decimal?, previous: Decimal?) -> Int? {
     guard let current, let previous, previous != 0 else { return nil }
     let ratio = ((current - previous) / previous * 100) as NSDecimalNumber
     return Int(ratio.doubleValue.rounded())
