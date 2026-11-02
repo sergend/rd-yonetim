@@ -53,17 +53,84 @@ struct ProjectListView: View {
   }
 }
 
+/// Proje sekmeleri. Her sekme ilgili modülün proje süzgeçli ekranıdır.
+enum ProjectTab: String, CaseIterable, Identifiable {
+  case ozet, giderler, taseronlar, puantaj, hakedis, cari
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .ozet: "Özet"
+    case .giderler: "Giderler"
+    case .taseronlar: "Taşeronlar"
+    case .puantaj: "Puantaj"
+    case .hakedis: "Hakediş"
+    case .cari: "Cari"
+    }
+  }
+
+  func isVisible(access: AccessControl, projectId: UUID) -> Bool {
+    switch self {
+    case .ozet: true
+    case .giderler: access.can(.giderRead, in: projectId) || access.can(.giderWrite, in: projectId)
+    case .taseronlar: access.can(.gorevlendirmeRead, in: projectId)
+    case .puantaj: access.can(.puantajRead, in: projectId)
+    case .hakedis: access.can(.hakedisRead, in: projectId) || access.can(.sozlesmeRead, in: projectId)
+    case .cari: access.can(.cariHareketRead, in: projectId)
+    }
+  }
+}
+
 struct ProjectDetailView: View {
   let app: AppModel
   @State private var model: ProjectDetailViewModel
   @State private var editing = false
+  @State private var tab: ProjectTab = .ozet
 
   init(project: Project, app: AppModel) {
     self.app = app
     _model = State(initialValue: ProjectDetailViewModel(project: project, access: app.access, repositories: app.repositories))
   }
 
+  private var tabs: [ProjectTab] {
+    ProjectTab.allCases.filter { $0.isVisible(access: app.access, projectId: model.project.id) }
+  }
+
   var body: some View {
+    tabContent
+      .safeAreaInset(edge: .top, spacing: 0) {
+        if tabs.count > 1 { ProjectTabBar(project: model.project, tabs: tabs, selection: $tab) }
+      }
+      .navigationTitle(model.project.code)
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        if model.canEdit && tab == .ozet {
+          Button("Düzenle") { editing = true }
+        }
+      }
+      .sheet(isPresented: $editing) {
+        ProjectFormView(model: ProjectFormViewModel(editing: model.project, repository: app.repositories.projects)) { saved in
+          model.didSave(saved)
+        }
+      }
+  }
+
+  @ViewBuilder
+  private var tabContent: some View {
+    let project = model.project
+    switch tab {
+    case .ozet: overview
+    case .giderler: FinanceDocumentListView(kind: .gider, projectId: project.id, app: app)
+    case .taseronlar: ProjectWorkforceView(project: project, app: app)
+    case .puantaj: PuantajView(project: project, app: app)
+    case .hakedis: HakedisListView(projectId: project.id, app: app)
+    case .cari: CariListView(projectId: project.id, app: app)
+    }
+  }
+
+  @ViewBuilder
+  private var overview: some View {
     let project = model.project
     List {
       if let error = model.errorMessage {
@@ -90,6 +157,8 @@ struct ProjectDetailView: View {
         }
       }
       .rdRowBackground()
+
+      if let costs = model.costs { costSection(costs) }
 
       Section("Bilgiler") {
         if let address = project.address { RDInfoRow(label: "Adres", value: address) }
@@ -206,20 +275,82 @@ struct ProjectDetailView: View {
     }
     .listStyle(.insetGrouped)
     .rdScreen()
-    .navigationTitle(project.code)
-    .navigationBarTitleDisplayMode(.inline)
-    .toolbar {
-      if model.canEdit {
-        Button("Düzenle") { editing = true }
-      }
-    }
-    .sheet(isPresented: $editing) {
-      ProjectFormView(model: ProjectFormViewModel(editing: project, repository: app.repositories.projects)) { saved in
-        model.didSave(saved)
-      }
-    }
     .refreshable { await model.load() }
     .task { await model.load() }
+  }
+}
+
+extension ProjectDetailView {
+  /// Proje maliyeti: gider ve hakediş ayrı satırlardır, birbirine eklenmez.
+  func costSection(_ costs: ProjectCostRow) -> some View {
+    Section {
+      if let accrued = costs.expenseAccruedTry {
+        MoneyRow(label: "Gider (onaylı)", amount: accrued, emphasized: true)
+        if let paid = costs.expensePaidTry { MoneyRow(label: "Ödenen", amount: paid) }
+        if let open = costs.expenseOpenTry, open != 0 { MoneyRow(label: "Bekleyen borç", amount: open) }
+      }
+      if let hakedis = costs.hakedisAccruedTry {
+        MoneyRow(label: "Taşeron hakedişi", amount: hakedis, emphasized: true)
+        if let paid = costs.hakedisPaidTry { MoneyRow(label: "Hakediş ödemesi", amount: paid) }
+        if let open = costs.hakedisOpenTry, open != 0 { MoneyRow(label: "Ödenmemiş hakediş", amount: open) }
+      }
+    } header: {
+      Text("Maliyet")
+    } footer: {
+      Text("Gider ve hakediş ayrı gösterilir; avans ödeme sayılmaz.")
+    }
+    .rdRowBackground()
+  }
+}
+
+/// Proje başlığı ve yatay kaydırılan sekmeler.
+struct ProjectTabBar: View {
+  let project: Project
+  let tabs: [ProjectTab]
+  @Binding var selection: ProjectTab
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      Text(project.name)
+        .font(RDFont.rowTitle)
+        .foregroundStyle(RDColor.textPrimary)
+        .lineLimit(1)
+        .padding(.horizontal, .rdScreen)
+        .padding(.top, .rdXS)
+      ScrollViewReader { proxy in
+        ScrollView(.horizontal, showsIndicators: false) {
+          HStack(spacing: .rdXS) {
+            ForEach(tabs) { item in
+              let isSelected = item == selection
+              Button {
+                selection = item
+                withAnimation { proxy.scrollTo(item.id, anchor: .center) }
+              } label: {
+                Text(item.title)
+                  .font(isSelected ? RDFont.secondary.weight(.bold) : RDFont.secondary)
+                  .foregroundStyle(isSelected ? RDColor.brandText : RDColor.textSecondary)
+                  .padding(.horizontal, .rdS)
+                  .frame(minHeight: Metrics.minTouchTarget)
+                  .overlay(alignment: .bottom) {
+                    Rectangle()
+                      .fill(isSelected ? RDColor.brandText : Color.clear)
+                      .frame(height: 2.5)
+                  }
+              }
+              .buttonStyle(.plain)
+              .id(item.id)
+              .accessibilityAddTraits(isSelected ? .isSelected : [])
+            }
+          }
+          .padding(.horizontal, .rdS)
+        }
+      }
+    }
+    .background {
+      Rectangle().fill(.bar)
+        .overlay(alignment: .bottom) { Rectangle().fill(RDColor.separator).frame(height: 0.5) }
+        .ignoresSafeArea(edges: .top)
+    }
   }
 }
 

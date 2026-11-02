@@ -90,7 +90,7 @@ struct AppRootView: View {
       case .signedOut:
         LoginView(session: app.session)
       case .signedIn(let context):
-        HomeView(context: context, repositories: app.repositories)
+        MainTabView(context: context)
           .id(context.session.userId)
       }
     }

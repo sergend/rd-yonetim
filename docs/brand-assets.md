@@ -1,26 +1,34 @@
-# Marka görselleri: hazırlık noktası
+# Marka görselleri
 
-**Durum: orijinal RD logosu (kırmızı R, siyah D) depoda YOK.** Uygulamada logo
-yerine yalnızca "RD Projeler" adı sistem yazı tipiyle yazılır. Logo taklit
-edilmez, harfler başka yazı tipiyle çizilmez, geçici logo üretilmez. Uygulama
-ikonu da boştur.
+**Durum: orijinal RD Projeler logosu (kırmızı R, siyah D, "Geleceğe Değer"
+sloganı) uygulamada.** Kaynak dosya kullanıcının paylaştığı PNG'dir; renkleri
+değiştirilmedi, yalnızca kırpıldı ve boyutlandırıldı.
 
-## Gerçek dosyalar gelince
-
-| Dosya | Yer | Biçim |
+| Görsel seti | İçerik | Kullanıldığı yer |
 | --- | --- | --- |
-| Logo (uygulama içi) | `ios/RDYonetim/Assets.xcassets/RDLogo.imageset/` | Tercihen vektör PDF veya SVG (tek dosya, "Preserve Vector Data" açık). Yoksa 1x/2x/3x PNG, saydam zemin |
-| Logo, koyu tema sürümü | Aynı görsel setine "Dark" görünümü olarak | Siyah D koyu zeminde görünmeyeceği için açık renkli D'li resmi sürüm gerekir. Marka sahibinden istenmeli, kendimiz renk değiştirmemeliyiz |
-| Uygulama ikonu | `ios/RDYonetim/Assets.xcassets/AppIcon.appiconset/` | 1024 × 1024 PNG, saydamlık yok, köşeler yuvarlatılmamış (iOS kendisi yuvarlar) |
+| `ios/RDYonetim/Assets.xcassets/RDLogo.imageset` | Sloganlı tam logo (1x/2x/3x PNG, saydam) | Giriş ve açılış ekranı (`RDBrandMark`), ay sonu hakediş raporu ve PDF başlığı |
+| `RDLogoWordmark.imageset` | Sloganı olmayan yatay logo | Ana sayfa üst bandı |
+| `RDLogoMark.imageset` | Yalnızca RD harfleri | Küçük alanlar için hazır |
+| `AppIcon.appiconset/AppIcon.png` | 1024 × 1024, beyaz zemin üzerinde RD harfleri | Uygulama ikonu |
 
-Adımlar:
+Kod tarafı `ios/RDYonetim/Design/BrandMark.swift`: `RDBrandMark` (giriş) ve
+`RDLogoImage(kind:height:)` (diğer yerler).
 
-1. Dosyaları yukarıdaki yerlere koyun (Xcode'da görsel setine sürükleyin).
-   `RDBrandMark` logoyu kendiliğinden gösterir, kod değişikliği gerekmez.
-2. Marka kırmızısının kesin değerini logodan (veya kurumsal kimlik kılavuzundan)
-   alın, `ios/RDCore/Sources/RDDesign/Tokens.swift` içinde `Palette.brand` ve
-   `Palette.brandText` değerlerini, `AccentColor.colorset` değerini güncelleyin.
-3. `cd ios/RDCore && swift test --filter RDDesignTests` çalıştırın. Kontrast
-   testleri geçmezse (ör. kırmızı koyu zeminde okunmuyorsa) `brandText.dark`
-   için daha açık bir ton seçilir; `brand` (dolgu) logo rengiyle kalabilir.
-4. Açık ve koyu temada giriş ve ana sayfa önizlemelerini kontrol edin.
+## Koyu tema
+
+Logonun D harfi siyahtır ve koyu zeminde kaybolur. Resmi koyu tema sürümü
+olmadığı için logo koyu temada **beyaz yuvarlatılmış zemin üzerinde**
+gösterilir; renkler değiştirilmez. Marka sahibinden açık renkli D'li resmi
+sürüm gelirse görsel setlerine "Dark" görünümü olarak eklenir ve
+`RDLogoImage` içindeki beyaz zemin kaldırılır.
+
+## Marka kırmızısı
+
+Logodan ölçülen değer **#CB010E**; `Palette.brand`, `Palette.brandText` (açık) ve
+`AccentColor` bu değerdedir. Değiştirilirse `cd ios/RDCore && swift test --filter
+RDDesignTests` kontrast ve eşleşme testlerini çalıştırır.
+
+## Vektör dosya gelirse
+
+PDF veya SVG logo gelirse aynı görsel setlerine tek dosya olarak konur
+("Preserve Vector Data" açık) ve PNG'ler kaldırılır; kod değişmez.

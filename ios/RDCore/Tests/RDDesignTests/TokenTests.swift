@@ -88,19 +88,21 @@ final class TokenTests: XCTestCase {
   }
 }
 
-/// Ürün kuralı: ana sayfada para tutarı, kasa veya banka bakiyesi gösterilmez.
+/// Ürün kuralı: ana sayfa proje maliyeti, bekleyen ödeme ve hakediş tutarlarını
+/// gösterir; ama kasa, banka veya cari bakiyesi göstermez (odak genel kasa değil).
 final class HomeScreenRuleTests: XCTestCase {
-  func testHomeScreenShowsNoMoney() throws {
-    let url = URL(fileURLWithPath: #filePath)
+  func testHomeScreenShowsNoCashOrBankBalance() throws {
+    let root = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-      .appendingPathComponent("RDYonetim/Home/HomeView.swift")
-    // Yorum satırları hariç kod.
-    let code = try String(contentsOf: url, encoding: .utf8)
-      .split(separator: "\n")
-      .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
-      .joined(separator: "\n")
-    for forbidden in ["RDAmount", "Money.format", "balance", "Balance", "cari_balances", "kasa", "banka"] {
-      XCTAssertFalse(code.contains(forbidden), "Ana sayfa kodunda yasaklı ifade: \(forbidden)")
+    for file in ["RDYonetim/Home/HomeView.swift", "RDYonetim/Home/HomeDashboardSections.swift"] {
+      // Yorum satırları hariç kod.
+      let code = try String(contentsOf: root.appendingPathComponent(file), encoding: .utf8)
+        .split(separator: "\n")
+        .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+        .joined(separator: "\n")
+      for forbidden in ["balance", "Balance", "cari_balances", "kasa", "Kasa", "banka", "Banka"] {
+        XCTAssertFalse(code.contains(forbidden), "\(file) kodunda yasaklı ifade: \(forbidden)")
+      }
     }
   }
 }
